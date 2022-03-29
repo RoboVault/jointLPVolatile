@@ -328,6 +328,16 @@ contract Strategy is BaseStrategy {
         }
     }
 
+    function liquidateJointAuth() external onlyAuthorized {
+        if (debtJoint > 0){
+            jointVault.withdraw(BASIS_PRECISION);
+        }
+    }
+
+    function liquidateLendAuth() external onlyAuthorized {
+        _redeemWant(balanceLend());
+    }
+
     function liquidateAllPositionsAuth() external onlyAuthorized {
         liquidateAllPositions();
     }

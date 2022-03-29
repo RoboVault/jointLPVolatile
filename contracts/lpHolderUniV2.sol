@@ -331,30 +331,33 @@ contract jointLPHolderUniV2 is Ownable {
     }
 
     function balanceTokenWithRebalance(uint256 _tokenIndex) public view returns(uint256) {
-        uint256 lpAmount = getLpReserves(_tokenIndex);
-        uint256 tokenBalance = lpBalance().mul(lpAmount).div(lp.totalSupply());
 
+        uint256 tokenBalance0 = balanceToken(0);
+        uint256 tokenBalance1 = balanceToken(1);
         uint256 debtRatio0 = calcDebtRatio(0);
         uint256 debtRatio1 = calcDebtRatio(1);
 
-        uint256 amtSub0;
-        uint256 amtSub1; 
-        uint256 amtIn0;
-        uint256 amtIn1;
+        uint256 swapPct;
 
         if (debtRatio0 > debtRatio1) {
-            amtSub1 = balanceToken(1).mul(debtRatio0.sub(debtRatio1)).div(BASIS_PRECISION).div(2); 
-            amtIn0 = convertAtoB(address(tokens[1]), address(tokens[0]), amtSub1);
+            swapPct = (debtRatio0.sub(debtRatio1)).div(2);
+            uint256 swapAmount = tokenBalance1.mul(swapPct).div(BASIS_PRECISION); 
+            uint256 amountIn = convertAtoB(address(tokens[1]), address(tokens[0]), swapAmount);
+            tokenBalance0 = tokenBalance0.add(amountIn);
+            tokenBalance1 = tokenBalance1.sub(swapAmount);
 
         } else {
-            uint256 amtSub0 = balanceToken(0).mul(debtRatio1.sub(debtRatio0)).div(BASIS_PRECISION).div(2); 
-            uint256 amtIn1 = convertAtoB(address(tokens[0]), address(tokens[1]), amtSub0);
+            swapPct = (debtRatio1.sub(debtRatio0)).div(2);
+            uint256 swapAmount = tokenBalance0.mul(swapPct).div(BASIS_PRECISION); 
+            uint256 amountIn = convertAtoB(address(tokens[0]), address(tokens[1]), swapAmount);
+            tokenBalance0 = tokenBalance0.sub(swapAmount);
+            tokenBalance1 = tokenBalance1.add(amountIn);
         }
 
         if (_tokenIndex == 0) {
-            return(tokenBalance.add(amtIn0).sub(amtSub0));
+            return(tokenBalance0);
         } else {
-            return(tokenBalance.add(amtIn1).sub(amtSub1));
+            return(tokenBalance1);
         }
 
     }
