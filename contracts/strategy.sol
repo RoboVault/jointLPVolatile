@@ -25,6 +25,9 @@ interface IERC20Extended is IERC20 {
 
 import "./interfaces/uniswap.sol";
 import "./interfaces/ctoken.sol";
+import "./interfaces/ipriceoracle.sol";
+import "./screampriceoracle.sol";
+
 // Import interfaces for many popular DeFi projects, or add your own!
 //import "../interfaces/<protocol>/<Interface>.sol";
 
@@ -42,6 +45,7 @@ contract Strategy is BaseStrategy {
 
     IJointVault jointVault; 
     ICTokenErc20 public cTokenLend;
+    IPriceOracle oracle;
     IUniswapV2Router01 router;
     IComptroller comptroller;
     IERC20 compToken;
@@ -88,6 +92,12 @@ contract Strategy is BaseStrategy {
         cTokens[0] = address(cTokenLend);
         comptroller.enterMarkets(cTokens);
 
+
+        oracle = new ScreamPriceOracle(
+            address(comptroller),
+            address(cTokenLend)
+        );
+
         // You can set these parameters on deployment to whatever you want
         // maxReportDelay = 6300;
         // profitFactor = 100;
@@ -131,6 +141,11 @@ contract Strategy is BaseStrategy {
     function wantAvailable() public view returns(uint256) {
         return(balanceOfWant().add(balanceLend()));
     }
+
+    function getOraclePrice() public view returns(uint256) {
+        return(oracle.getPrice());
+    }
+
 
     function prepareReturn(uint256 _debtOutstanding)
         internal

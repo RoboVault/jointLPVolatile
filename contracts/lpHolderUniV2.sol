@@ -18,6 +18,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import "./interfaces/uniswap.sol";
 import "./interfaces/farm.sol";
+import "./interfaces/ipriceoracle.sol";
 
 
 interface ERC20Decimals {
@@ -34,6 +35,7 @@ interface IStrat {
     function totalDebt() external view returns (uint256);
     function debtJoint() external view returns (uint256);
     function adjustJointDebtOnWithdraw(uint256 _debtProportion) external;
+    function getOraclePrice() external view returns (uint256);
 }
 
 contract jointLPHolderUniV2 is Ownable {
@@ -41,13 +43,15 @@ contract jointLPHolderUniV2 is Ownable {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
-
+    
+    bool public doPriceCheck = true;
     uint256 internal numTokens = 2;
     uint256 public slippageAdj = 9900; // 99%
     uint256 constant BASIS_PRECISION = 10000;
     uint256 public rebalancePercent = 10000;
     uint256 bpsRebalanceDiff = 50;
     uint256 debtUpper = 10250;
+    uint256 public priceSourceDiff = 500; // 5% Default
     bool public initialisedStrategies = false; 
 
     address keeper; 
@@ -160,6 +164,12 @@ contract jointLPHolderUniV2 is Ownable {
         );
     }
 
+    function setPriceSource(bool _doPriceCheck, uint256 _priceSourceDiff) external onlyAuthorized {
+        doPriceCheck = _doPriceCheck;
+        priceSourceDiff = _priceSourceDiff;
+
+    }
+
     function setParamaters(uint256 _slippageAdj, uint256 _bpsRebalanceDiff, uint256 _rebalancePercent, uint256 _debtUpper) external onlyAuthorized {
         slippageAdj = _slippageAdj;
         bpsRebalanceDiff = _bpsRebalanceDiff;
@@ -221,11 +231,26 @@ contract jointLPHolderUniV2 is Ownable {
     }
 
     function rebalanceDebt() external onlyKeepers {
-        //require(_testPriceSource());
+        require(_testPriceSource());
         require(calcDebtRatio(0) > debtUpper || calcDebtRatio(1) > debtUpper);
         _rebalanceDebtInternal(rebalancePercent);
         _adjustDebtOnRebalance();
 
+    }
+
+    function _testPriceSource() internal view returns (bool) {
+        if (doPriceCheck){
+            uint256 _amountIn = tokens[0].totalSupply();
+            uint256 lpPrice = convertAtoB(address(tokens[0]), address(tokens[1]), _amountIn);
+            uint256 oraclePrice = convertAtoBOracle(address(tokens[0]), address(tokens[1]), _amountIn);
+            uint256 priceSourceRatio = lpPrice.mul(BASIS_PRECISION).div(oraclePrice);
+
+            return (priceSourceRatio > BASIS_PRECISION.sub(priceSourceDiff) &&
+                priceSourceRatio < BASIS_PRECISION.add(priceSourceDiff));
+
+
+        }
+        return true;
     }
 
     function _rebalanceDebtInternal(uint256 _rebalancePercent) internal {
@@ -340,7 +365,7 @@ contract jointLPHolderUniV2 is Ownable {
     }
 
     function convertAtoB(address _tokenA, address _tokenB, uint256 _amountIn) 
-        internal
+        public
         view
         returns (uint256 _amountOut)
     {
@@ -353,6 +378,21 @@ contract jointLPHolderUniV2 is Ownable {
             return(_amountIn.mul(token0Amt).div(token1Amt));
         }
     }
+
+    function convertAtoBOracle(address _tokenA, address _tokenB, uint256 _amountIn) 
+        public
+        view
+        returns (uint256 _amountOut)
+    {
+        address StratA = strategies[IERC20(_tokenA)];
+        address StratB = strategies[IERC20(_tokenB)];
+
+        uint256 priceA = IStrat(StratA).getOraclePrice();
+        uint256 priceB = IStrat(StratB).getOraclePrice();
+
+        return(priceA.mul(_amountIn).div(priceB));
+    }
+
 
     function getLpReserves(uint256 _index)
         public
@@ -413,6 +453,7 @@ contract jointLPHolderUniV2 is Ownable {
     }
 
     function withdraw(uint256 _debtProportion) external onlyStrategies {
+        require(_testPriceSource());
         _rebalanceDebtInternal(_debtProportion);
         _withdrawLp(_debtProportion);
         for (uint256 i = 0; i < numTokens; i++){

@@ -151,9 +151,9 @@ def scTokens(conf, tokens):
     yield scTokens
 
 @pytest.fixture
-def jointLP(pm, gov, conf, keeper ,rewards, guardian, management) : 
+def jointLP(pm, gov, conf, keeper ,rewards, guardian, management, jointLPHolderUniV2) : 
     lp = conf['LP']
-    jointLPContract = project.JointlpProject.jointLPHolderUniV2
+    jointLPContract = jointLPHolderUniV2
     farmToken = conf['harvest_tokens'][0]
     nTokens = 2
     jointLP = jointLPContract.deploy(lp, conf['farm'] , conf['farmPID'], conf['router'], farmToken, {'from' : gov})
@@ -178,8 +178,8 @@ def vaults(pm, gov, rewards, guardian, management, tokens):
     yield vaults
 
 @pytest.fixture
-def strategies(strategist, keeper, vaults, tokens, gov, conf, jointLP):
-    strategyProvider = project.JointlpProject.Strategy
+def strategies(strategist, keeper, vaults, tokens, gov, conf, jointLP, Strategy):
+    strategyProvider = Strategy
     strategies = []
     i = 0
     for vault in vaults : 
@@ -195,12 +195,12 @@ def strategies(strategist, keeper, vaults, tokens, gov, conf, jointLP):
 @pytest.fixture
 def strategy_contract():
     # yield  project.CoreStrategyProject.USDCWFTMScreamLqdrSpooky
-    yield  project.JointlpProject.Strategy
+    yield  project.JointlpvolatileProject.Strategy
 
 @pytest.fixture
 def jointLP_contract():
     # yield  project.CoreStrategyProject.USDCWFTMScreamLqdrSpooky
-    yield  project.JointlpProject.jointLPHolderUniV2
+    yield  project.JointlpvolatileProject.jointLPHolderUniV2
 
 
 @pytest.fixture

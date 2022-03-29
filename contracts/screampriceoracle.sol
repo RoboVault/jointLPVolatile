@@ -16,24 +16,16 @@ contract ScreamPriceOracle is IPriceOracle {
 
     constructor(
         address _comptroller,
-        address _cTokenQuote,
         address _cTokenBase
     ) public {
-        cTokenQuote = _cTokenQuote;
         cTokenBase = _cTokenBase;
         comptroller = ComptrollerV5Storage(_comptroller);
     }
 
     function getPrice() external view override returns (uint256) {
         ICompPriceOracle oracle = ICompPriceOracle(comptroller.oracle());
-
-        // If price returns 0, the price is not available
-        uint256 quotePrice = oracle.getUnderlyingPrice(cTokenQuote);
-        require(quotePrice != 0);
-
         uint256 basePrice = oracle.getUnderlyingPrice(cTokenBase);
         require(basePrice != 0);
-
-        return basePrice.mul(1e18).div(quotePrice);
+        return basePrice;
     }
 }
