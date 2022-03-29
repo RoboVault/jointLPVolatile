@@ -56,8 +56,8 @@ def test_rebalanceDebtA(
     #assert False
     assert strategy.debtJoint() > 0
 
-    debtRatio0 = jointLP.calcDebtRatio(0)
-    debtRatio1 = jointLP.calcDebtRatio(1)
+    debtRatio0 = jointLP.calcDebtRatioToken(0)
+    debtRatio1 = jointLP.calcDebtRatioToken(1)
 
     print('Debt Ratio A :  {0}'.format(debtRatio0))
     print('Debt Ratio B :  {0}'.format(debtRatio1))
@@ -67,8 +67,8 @@ def test_rebalanceDebtA(
     print('rebalance debt')
     jointLP.rebalanceDebt()
 
-    debtRatio0 = jointLP.calcDebtRatio(0)
-    debtRatio1 = jointLP.calcDebtRatio(1)
+    debtRatio0 = jointLP.calcDebtRatioToken(0)
+    debtRatio1 = jointLP.calcDebtRatioToken(1)
 
     print('Debt Ratio A :  {0}'.format(debtRatio0))
     print('Debt Ratio B :  {0}'.format(debtRatio1))
@@ -107,8 +107,8 @@ def test_rebalanceDebtB(
     #assert False
     assert strategy.debtJoint() > 0
 
-    debtRatio0 = jointLP.calcDebtRatio(0)
-    debtRatio1 = jointLP.calcDebtRatio(1)
+    debtRatio0 = jointLP.calcDebtRatioToken(0)
+    debtRatio1 = jointLP.calcDebtRatioToken(1)
 
     print('Debt Ratio A :  {0}'.format(debtRatio0))
     print('Debt Ratio B :  {0}'.format(debtRatio1))
@@ -119,8 +119,8 @@ def test_rebalanceDebtB(
     print('rebalance debt')
     jointLP.rebalanceDebt()
 
-    debtRatio0 = jointLP.calcDebtRatio(0)
-    debtRatio1 = jointLP.calcDebtRatio(1)
+    debtRatio0 = jointLP.calcDebtRatioToken(0)
+    debtRatio1 = jointLP.calcDebtRatioToken(1)
 
     print('Debt Ratio A :  {0}'.format(debtRatio0))
     print('Debt Ratio B :  {0}'.format(debtRatio1))
@@ -372,8 +372,8 @@ def test_price_offset_checks_A(
     #assert False
     assert strategy.debtJoint() > 0
 
-    debtRatio0 = jointLP.calcDebtRatio(0)
-    debtRatio1 = jointLP.calcDebtRatio(1)
+    debtRatio0 = jointLP.calcDebtRatioToken(0)
+    debtRatio1 = jointLP.calcDebtRatioToken(1)
 
     print('Debt Ratio A :  {0}'.format(debtRatio0))
     print('Debt Ratio B :  {0}'.format(debtRatio1))
@@ -407,8 +407,8 @@ def test_price_offset_checks_A(
 
     jointLP.rebalanceDebt()
 
-    debtRatio0 = jointLP.calcDebtRatio(0)
-    debtRatio1 = jointLP.calcDebtRatio(1)
+    debtRatio0 = jointLP.calcDebtRatioToken(0)
+    debtRatio1 = jointLP.calcDebtRatioToken(1)
 
     print('Debt Ratio A :  {0}'.format(debtRatio0))
     print('Debt Ratio B :  {0}'.format(debtRatio1))
@@ -461,8 +461,8 @@ def test_price_offset_checks_B(
     #assert False
     assert strategy.debtJoint() > 0
 
-    debtRatio0 = jointLP.calcDebtRatio(0)
-    debtRatio1 = jointLP.calcDebtRatio(1)
+    debtRatio0 = jointLP.calcDebtRatioToken(0)
+    debtRatio1 = jointLP.calcDebtRatioToken(1)
 
     print('Debt Ratio A :  {0}'.format(debtRatio0))
     print('Debt Ratio B :  {0}'.format(debtRatio1))
@@ -496,8 +496,8 @@ def test_price_offset_checks_B(
     
     jointLP.rebalanceDebt()
 
-    debtRatio0 = jointLP.calcDebtRatio(0)
-    debtRatio1 = jointLP.calcDebtRatio(1)
+    debtRatio0 = jointLP.calcDebtRatioToken(0)
+    debtRatio1 = jointLP.calcDebtRatioToken(1)
 
     print('Debt Ratio A :  {0}'.format(debtRatio0))
     print('Debt Ratio B :  {0}'.format(debtRatio1))

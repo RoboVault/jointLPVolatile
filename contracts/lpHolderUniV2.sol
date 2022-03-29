@@ -232,7 +232,7 @@ contract jointLPHolderUniV2 is Ownable {
 
     function rebalanceDebt() external onlyKeepers {
         require(_testPriceSource());
-        require(calcDebtRatio(0) > debtUpper || calcDebtRatio(1) > debtUpper);
+        require(calcDebtRatioToken(0) > debtUpper || calcDebtRatioToken(1) > debtUpper);
         _rebalanceDebtInternal(rebalancePercent);
         _adjustDebtOnRebalance();
 
@@ -257,8 +257,8 @@ contract jointLPHolderUniV2 is Ownable {
         // this will be the % of balance for either short A or short B swapped 
         uint256 swapAmt;
         uint256 lpRemovePercent;
-        uint256 debtRatio0 = calcDebtRatio(0);
-        uint256 debtRatio1 = calcDebtRatio(1);
+        uint256 debtRatio0 = calcDebtRatioToken(0);
+        uint256 debtRatio1 = calcDebtRatioToken(1);
 
 
         // note we add some noise to check there is big enough difference between the debt ratios (0.5%) as we also call this during liquidate Position All
@@ -320,8 +320,12 @@ contract jointLPHolderUniV2 is Ownable {
 
     }
 
-    function calcDebtRatio(uint256 _tokenIndex) public view returns(uint256) {
+    function calcDebtRatioToken(uint256 _tokenIndex) public view returns(uint256) {
         return(debtOutstanding(address(tokens[_tokenIndex])).mul(BASIS_PRECISION).div(balanceToken(_tokenIndex))); 
+    }
+
+    function calcDebtRatio() public view returns(uint256, uint256) {
+        return(calcDebtRatioToken(0), calcDebtRatioToken(1));
     }
 
     function balanceToken(uint256 _tokenIndex) public view returns(uint256) {
@@ -334,8 +338,8 @@ contract jointLPHolderUniV2 is Ownable {
 
         uint256 tokenBalance0 = balanceToken(0);
         uint256 tokenBalance1 = balanceToken(1);
-        uint256 debtRatio0 = calcDebtRatio(0);
-        uint256 debtRatio1 = calcDebtRatio(1);
+        uint256 debtRatio0 = calcDebtRatioToken(0);
+        uint256 debtRatio1 = calcDebtRatioToken(1);
 
         uint256 swapPct;
 
