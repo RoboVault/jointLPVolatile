@@ -64,19 +64,30 @@ interface IStrat {
     function getOraclePrice() external view returns (uint256);
 }
 
+/// @title Manages LP from two provider strats
+/// @author Robovault
+/// @notice This contract takes tokens from two provider strats creates LP and manages the position 
+/// @dev Design to interact with two strategies from single asset vaults 
+
+
 contract jointLPHolderUniV2 is Ownable {
 
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
     
+    /// @notice Do we check oracle price vs lp price when rebalancing / withdrawing
+    // helps avoid sandwhich attacks
     bool public doPriceCheck = true;
     uint256 internal numTokens = 2;
     uint256 public slippageAdj = 9900; // 99%
     uint256 constant BASIS_PRECISION = 10000;
     uint256 public rebalancePercent = 10000;
+    /// @notice to make sure we don't try to do tiny rebalances with insufficient swap amount when withdrawing have some buffer 
     uint256 bpsRebalanceDiff = 50;
+    // @we rebalance if debt ratio for either assets goes above this ratio 
     uint256 debtUpper = 10250;
+    // @max difference between LP & oracle prices to complete rebalance / withdraw 
     uint256 public priceSourceDiff = 500; // 5% Default
     bool public initialisedStrategies = false; 
 
@@ -190,12 +201,14 @@ contract jointLPHolderUniV2 is Ownable {
         );
     }
 
+    /// @notice for doing price check against oracle price + setting max difference 
     function setPriceSource(bool _doPriceCheck, uint256 _priceSourceDiff) external onlyAuthorized {
         doPriceCheck = _doPriceCheck;
         priceSourceDiff = _priceSourceDiff;
 
     }
 
+    /// @notice set other paramaters used by jointLP 
     function setParamaters(uint256 _slippageAdj, uint256 _bpsRebalanceDiff, uint256 _rebalancePercent, uint256 _debtUpper) external onlyAuthorized {
         slippageAdj = _slippageAdj;
         bpsRebalanceDiff = _bpsRebalanceDiff;
@@ -203,11 +216,12 @@ contract jointLPHolderUniV2 is Ownable {
         debtUpper = _debtUpper;
     }
 
+    /// @notice here we withdraw from farm 
     function removeFromFarmAuth() external onlyAuthorized {
         farm.emergencyWithdraw(farmPid);
     }
 
-    // called in emergency to pull all funds from LP and send tokens back to provider strats
+    /// @notice called in emergency to pull all funds from LP and send tokens back to provider strats
     function withdrawAllFromJoint() external onlyAuthorized {
         uint256 _debtProportion = BASIS_PRECISION;
         _rebalanceDebtInternal(_debtProportion);
@@ -219,7 +233,7 @@ contract jointLPHolderUniV2 is Ownable {
         }
     }
 
-    // called in emergency to pull all funds from LP and send tokens back to provider strats while not rebalancing
+    /// @notice called in emergency to pull all funds from LP and send tokens back to provider strats while not rebalancing
     function withdrawAllFromJointNoRebalance() external onlyAuthorized {
 
         _withdrawLp(BASIS_PRECISION);
@@ -231,7 +245,8 @@ contract jointLPHolderUniV2 is Ownable {
     }
 
 
-    // 
+    /// @notice called by either of the provider strategies 
+    /// pulls in want from both provider strategies to create LP and deposit to farm 
     function addToJoint() external onlyStrategies {
         // proportion of want in LP that is pulled as when we add we do so prporitionally from each strategy 
         // initialise to uint(-1) so we can take min while looping through tokens 
@@ -256,6 +271,11 @@ contract jointLPHolderUniV2 is Ownable {
 
     }
 
+    /// @notice here we rebalance if prices have moved and pushed one of the debt ratios above debt upper 
+    // we first check price difference of LP vs oracles to make sure no price maniupation
+    // we then check debt ratio for one of the tokens is > debt upper 
+    // we then call rebalance Debt Internal 
+    // finally we send the rebalanced tokens back to the associated strategy & adjust it's JointDebt 
     function rebalanceDebt() external onlyKeepers {
         require(_testPriceSource());
         require(calcDebtRatioToken(0) > debtUpper || calcDebtRatioToken(1) > debtUpper);
@@ -264,6 +284,7 @@ contract jointLPHolderUniV2 is Ownable {
 
     }
 
+    /// @notice checks LP price against oracle prices 
     function _testPriceSource() internal view returns (bool) {
         if (doPriceCheck){
             uint256 _amountIn = tokens[0].totalSupply();
@@ -279,6 +300,10 @@ contract jointLPHolderUniV2 is Ownable {
         return true;
     }
 
+    /// @notice rebalances the position to bring back to delta neutral position 
+    // we first find the difference between the debt ratios 
+    // we remove a portion of the LP equal to half of the difference of the debt ratios in LP (adjusted by rebalcne percent)
+    // we then swap the asset which has the lower debt ratio for the asset with higher debt ratio 
     function _rebalanceDebtInternal(uint256 _rebalancePercent) internal {
         // this will be the % of balance for either short A or short B swapped 
         uint256 swapAmt;
@@ -287,7 +312,7 @@ contract jointLPHolderUniV2 is Ownable {
         uint256 debtRatio1 = calcDebtRatioToken(1);
 
 
-        // note we add some noise to check there is big enough difference between the debt ratios (0.5%) as we also call this during liquidate Position All
+        //. @notice we add some noise to check there is big enough difference between the debt ratios (0.5%) as we also call this during liquidate Position All
         if (debtRatio0 > debtRatio1.add(bpsRebalanceDiff)) {
             lpRemovePercent = (debtRatio0.sub(debtRatio1)).div(2).mul(_rebalancePercent).div(BASIS_PRECISION);
             _withdrawLp(lpRemovePercent);
@@ -302,6 +327,8 @@ contract jointLPHolderUniV2 is Ownable {
 
     }
 
+    /// @notice after a rebalance, tokens in excess of LP are returned to the provider strategies 
+    // we also adjust the jointDebt paramater which is essentially the debt from the provider strat to the joint LP holder 
     function _adjustDebtOnRebalance() internal {
         uint256 bal0 = tokens[0].balanceOf(address(this));
         uint256 bal1 = tokens[1].balanceOf(address(this));
@@ -316,12 +343,13 @@ contract jointLPHolderUniV2 is Ownable {
 
     }
 
+    /// @notice debt from provider strat to joint LP holder 
     function debtOutstanding(address _token) public view returns(uint256) {
         address strategy = strategies[IERC20(_token)];
         return(IStrat(strategy).debtJoint());
     }
 
-    // calculates the Profit / Loss by comparing balances of each token vs amount of Debt 
+    /// @notice calculates the Profit / Loss by comparing balances of each token vs amount of Debt 
     function calculateProfit(address _token) public view returns(uint256 _loss, uint256 _profit) {
 
         uint256 debt = debtOutstanding(_token);
@@ -360,6 +388,9 @@ contract jointLPHolderUniV2 is Ownable {
         return(tokenBalance);
     }
 
+    /// @notice here we calculate the balances of token if we rebalance 
+    // this is because as prices in LP move one of the provider strat will be in profit while the other will be in loss
+    // here we calculate if we rebalance what will the balances of each token be 
     function balanceTokenWithRebalance(uint256 _tokenIndex) public view returns(uint256) {
 
         uint256 tokenBalance0 = balanceToken(0);
@@ -392,11 +423,12 @@ contract jointLPHolderUniV2 is Ownable {
 
     }
 
-
+    // how much of the lP token do we hold 
     function lpBalance() public view returns(uint256){
         return(lp.balanceOf(address(this)).add(countLpPooled()));
     }
 
+    /// @notice simple helper function to convert tokens based on LP price 
     function convertAtoB(address _tokenA, address _tokenB, uint256 _amountIn) 
         public
         view
@@ -411,7 +443,7 @@ contract jointLPHolderUniV2 is Ownable {
             return(_amountIn.mul(token0Amt).div(token1Amt));
         }
     }
-
+    // @notice simple helper function to convert tokens based on oracle prices 
     function convertAtoBOracle(address _tokenA, address _tokenB, uint256 _amountIn) 
         public
         view
@@ -486,6 +518,10 @@ contract jointLPHolderUniV2 is Ownable {
         
     }
 
+    /// @notice each of the provider strategies can withdraw a proportion of the tokens they've provided 
+    // here we first check prices for manipulation 
+    // then we rebalance based on the portion being withdrawn this means each provider strat takes roughly the same P&L 
+    // we then withdraw the required LP and return the required tokens to each provider strat & adjust the jointDebt paramater
     function withdraw(uint256 _debtProportion) external onlyStrategies {
         require(_testPriceSource());
         _rebalanceDebtInternal(_debtProportion);
