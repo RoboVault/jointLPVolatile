@@ -6,8 +6,13 @@ import time
 
 def offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct):
     # use other AMM's LP to force some swaps 
+    solidRouter = '0xa38cd27185a464914D3046f0AB9d43356B34829D'
 
-    router = Contract(conf['router'])
+    if conf['lpType'] == 'uniV2' :
+        router = Contract(conf['router'])
+    else : 
+        router = Contract(solidRouter)
+
     whale = whales[tokenIndex]
     token = tokens[tokenIndex]
     if tokenIndex == 0 : 
@@ -20,7 +25,11 @@ def offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct):
     swapAmt = min(swapAmtMax, token.balanceOf(whale))
     print("Force Large Swap - to offset debt ratios")
     token.approve(router, 2**256-1, {"from": whale})
-    router.swapExactTokensForTokens(swapAmt, 0, [token, swapTo], whale, 2**256-1, {"from": whale})
+    if conf['lpType'] == 'uniV2' :  
+        router.swapExactTokensForTokens(swapAmt, 0, [token, swapTo], whale, 2**256-1, {"from": whale})
+    else : 
+        router.swapExactTokensForTokensSimple(swapAmt, 0, token, swapTo, False, whale, 2**256-1, {"from": whale})
+
 
 def test_rebalanceDebtA(
     chain, accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf

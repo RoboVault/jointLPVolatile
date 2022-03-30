@@ -9,12 +9,16 @@ SPOOKY_ROUTER = '0xF491e7B69E4244ad4002BC14e878a34207E38c29'
 SPOOKY_MASTERCHEF = '0x2b2929E785374c651a81A63878Ab22742656DcDd'
 BOO = '0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE'
 
+lqdrMasterChef = '0x6e2ad6527901c9664f016466b8DA1357a004db0f'
+lqdr = '0x10b620b2dbAC4Faa7D7FFD71Da486f5D44cd86f9'
+
 'Stables'
 USDC = '0x04068DA6C83AFCFA0e13ba15A6696662335D5B75'
 FUSDT = '0x049d68029688eAbF473097a2fC38ef61633A3C7A'
 MIM = '0x82f0B8B456c1A451378467398982d4834b6829c1'
 DAI = '0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E'
 WFTM = '0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83'
+FRAX = '0xdc301622e621166BD8E82f2cA0A26c13Ad0BE355'
 
 'SCREAM Lend Tokens'
 SCUSDC = '0xE45Ac34E528907d0A0239ab5Db507688070B20bf'
@@ -22,40 +26,112 @@ SCFUSDT = '0x02224765BC8D54C21BB51b0951c80315E1c263F9'
 SCMIM =  '0x90B7C21Be43855aFD2515675fc307c084427404f'
 SCDAI = '0x8D9AED9882b4953a0c9fa920168fa1FDfA0eBE75'
 SCWFTM = '0x5AA53f03197E08C4851CAD8C92c7922DA5857E5d'
+SCFRAX = '0x4E6854EA84884330207fB557D1555961D85Fc17E'
+
+screamComptroller = '0x260E596DAbE3AFc463e75B6CC05d8c46aCAcFB09'
+hndComptroller = '0x0F390559F258eB8591C8e31Cf0905E97cf36ACE2'
 
 scTokenDict = {
     USDC : SCUSDC,
     FUSDT : SCFUSDT,
     MIM : SCMIM,
     DAI : SCDAI,
-    WFTM : SCWFTM
+    WFTM : SCWFTM,
+    FRAX : SCFRAX
+
 }
 
+"""
+'HND Lend Tokens'
+hUSDC = '0x243E33aa7f6787154a8E59d3C27a66db3F8818ee'
+hFRAX = '0xb4300e088a3AE4e624EE5C71Bc1822F68BB5f2bc'
+hWFTM = '0xfCD8570AD81e6c77b8D252bEbEBA62ed980BD64D'
+hMIM = '0xa8cD5D59827514BCF343EC19F531ce1788Ea48f8'
+
+'HND Gauges'
+
+gUSDC : '0x110614276F7b9Ae8586a1C1D9Bc079771e2CE8cF'
+gUSDT : '0xbF689f50cB446f171F08691367f7D9398b24D382'
+gMIM : '0x26596af66A10Cb6c6fe890273eD37980D50f2448'
+gFRAX : '0x2c7a9d9919f042C4C120199c69e126124d09BE7c'
+gDAI : '0xB8481A3cE515EA8cAa112dba0D1ecfc03937fbcD'
+
+
+hndTokenDict = {
+    USDC : hUSDC,
+    FRAX : hFRAX,
+    MIM : hMIM,
+    WFTM : hWFTM
+}
+
+gaugeDict = {
+    USDC : gUSDC,
+    FRAX : gFRAX,
+    MIM : gMIM,
+}
+
+chosenLenderDict = {
+    USDC : 'scream',
+    FRAX : 'hnd',
+    WFTM : 'scream',
+    MIM : 'scream'
+}
+"""
 'Reward Tokens'
 SCREAM = '0xe0654C8e6fd4D733349ac7E09f6f23DA256bF475'
+HND = '0x10010078a54396F62c96dF8532dc2B4847d47ED3'
 CRV = '0x1E4F97b9f9F913c46F1632781732927B9019C68b'
 GEIST = '0xd8321AA83Fb0a4ECd6348D4577431310A6E0814d'
+oxd = '0xc5A9848b9d145965d821AaeC8fA32aaEE026492d'
+solid = '0x888EF71766ca594DED1F0FA3AE64eD2941740A20'
 
 CONFIG = {
 
-    'USDCFTMSpooky': {
+    'USDCFTMSpookyBOO': {
         'LP': '0x2b4C76d0dc16BE1C31D4C1DC53bF9B45987Fc75c',
         'tokens' : [USDC, WFTM],
         'farm' : SPOOKY_MASTERCHEF,
         'farmPID' : 2,
-        'comptroller' : '0x260E596DAbE3AFc463e75B6CC05d8c46aCAcFB09',
+        'comptroller' : screamComptroller,
         'harvest_tokens': [BOO],
+        'harvestWhale' : 0xa48d959AE2E88f1dAA7D5F611E01908106dE7598,
         'compToken': SCREAM,
-        'router': SPOOKY_ROUTER
+        'router': SPOOKY_ROUTER,
+        'lpType' : 'uniV2'
     },
 
+    'USDCFTMSpookyLQDR': {
+        'LP': '0x2b4C76d0dc16BE1C31D4C1DC53bF9B45987Fc75c',
+        'tokens' : [USDC, WFTM],
+        'farm' : lqdrMasterChef,
+        'farmPID' : 11,
+        'comptroller' : screamComptroller,
+        'harvest_tokens': [lqdr],
+        'harvestWhales' : [lqdrMasterChef],
+        'compToken': SCREAM,
+        'router': SPOOKY_ROUTER,
+        'lpType' : 'uniV2'
+    },
+
+    'FRAXFTMSOLID' : {
+        'LP': '0x9ae95682bde174993ecb818Cc23E8607d2e54667',
+        'tokens' : [FRAX, WFTM],
+        'farm' : SPOOKY_MASTERCHEF,
+        'farmPID' : 2,
+        'comptroller' : screamComptroller,
+        'harvest_tokens': [oxd, solid],
+        'harvestWhales' : ['0xDA00527EDAabCe6F97D89aDb10395f719E5559b9', '0xcBd8fEa77c2452255f59743f55A3Ea9d83b3c72b'],
+        'compToken': SCREAM,
+        'router': SPOOKY_ROUTER,
+        'lpType' : 'solid'      
+    }
 
 }
 
 
 @pytest.fixture
 def conf():
-    yield CONFIG['USDCFTMSpooky']
+    yield CONFIG['USDCFTMSpookyLQDR']
 
 @pytest.fixture
 def gov(accounts):
@@ -126,7 +202,7 @@ def weth_amout(user, weth):
 @pytest.fixture
 def tokens(conf, Contract):
     nTokens = 2
-    lp = Contract(conf['LP'])
+    #lp = Contract(conf['LP'])
     #tokenList = conf['tokens']
     tokens = []
 
@@ -151,12 +227,15 @@ def scTokens(conf, tokens):
     yield scTokens
 
 @pytest.fixture
-def jointLP(pm, gov, conf, keeper ,rewards, guardian, management, jointLPHolderUniV2) : 
+def jointLP(pm, gov, conf, keeper ,rewards, guardian, management, jointLPHolderUniV2, jointLPHolderSolidly) : 
     lp = conf['LP']
-    jointLPContract = jointLPHolderUniV2
     farmToken = conf['harvest_tokens'][0]
     nTokens = 2
-    jointLP = jointLPContract.deploy(lp, conf['farm'] , conf['farmPID'], conf['router'], farmToken, {'from' : gov})
+    if conf['lpType'] == 'uniV2':
+        jointLP = jointLPHolderUniV2.deploy(lp, conf['farm'] , conf['farmPID'], conf['router'], farmToken, {'from' : gov})
+    else :
+        jointLP = jointLPHolderSolidly.deploy(lp, conf['router'], {'from' : gov})
+
     jointLP.setKeeper(keeper)
     yield jointLP
 
@@ -178,12 +257,15 @@ def vaults(pm, gov, rewards, guardian, management, tokens):
     yield vaults
 
 @pytest.fixture
-def strategies(strategist, keeper, vaults, tokens, gov, conf, jointLP, Strategy):
-    strategyProvider = Strategy
+def strategies(strategist, keeper, vaults, tokens, gov, conf, jointLP, Strategy, StrategyHnd):
+
+
     strategies = []
     i = 0
     for vault in vaults : 
-        strategy = strategyProvider.deploy(vault, jointLP, scTokenDict[tokens[i].address], conf['comptroller'], conf['router'], conf['compToken'], {"from": strategist} )
+        token = tokens[i]
+        strategy = Strategy.deploy(vault, jointLP, scTokenDict[tokens[i].address], screamComptroller, conf['router'], SCREAM, {"from": strategist} )
+
         strategies = strategies + [strategy]
         vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
         i += 1
