@@ -23,6 +23,7 @@ interface IERC20Extended is IERC20 {
     function decimals() external view returns (uint8);
 }
 
+import "./interfaces/HundredFinance/IGuage.sol";
 import "./interfaces/uniswap.sol";
 import "./interfaces/ctoken.sol";
 import "./interfaces/ipriceoracle.sol";
@@ -37,7 +38,12 @@ interface IJointVault {
     function withdraw(uint256 _debtProportion) external;
 }
 
-contract Strategy is BaseStrategy {
+interface iMinter {
+    function mint(address) external;
+}
+
+
+contract StrategyHnd is BaseStrategy {
 
     using SafeERC20 for IERC20;
     using Address for address;
@@ -46,6 +52,9 @@ contract Strategy is BaseStrategy {
     IJointVault jointVault; 
     ICTokenErc20 public cTokenLend;
     IPriceOracle oracle;
+    IGuage public gauge;
+    address public minter;
+
     IUniswapV2Router01 router;
     IComptroller comptroller;
     IERC20 compToken;
@@ -73,7 +82,8 @@ contract Strategy is BaseStrategy {
         address _cTokenLend,
         address _comptroller,
         address _router,
-        address _compToken
+        address _compToken,
+        address _gauge
 
         ) public BaseStrategy(_vault) {
 
@@ -97,6 +107,9 @@ contract Strategy is BaseStrategy {
             address(comptroller),
             address(cTokenLend)
         );
+
+        gauge = IGuage(_gauge);
+        minter = gauge.minter();
 
         // You can set these parameters on deployment to whatever you want
         // maxReportDelay = 6300;
@@ -370,10 +383,9 @@ contract Strategy is BaseStrategy {
     }
 
     function harvestComp() external onlyKeepers {
-        comptroller.claimComp(address(this));
+        iMinter(minter).mint(address(gauge));
         _sellCompWant();
     }
-
 
     function _sellCompWant() internal virtual {
         uint256 compBalance = compToken.balanceOf(address(this));

@@ -15,37 +15,13 @@ import {ERC20} from  "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Math} from "@openzeppelin/contracts/math/Math.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
+
 import "./interfaces/uniswap.sol";
-import "./interfaces/ipriceoracle.sol";
+import "./interfaces/ISolidlyRouter01.sol";
+import "./interfaces/oxdao/IMultiRewards.sol";
+import "./interfaces/oxdao/IOxLens.sol";
+import "./interfaces/oxdao/IOxPool.sol";
 
-
-interface IMasterChefv2 {
-    function harvest(uint256 pid, address to) external;
-
-    function emergencyWithdraw(uint256 _pid) external;
-
-    function withdraw(
-        uint256 pid,
-        uint256 amount,
-        address to
-    ) external;
-
-    function deposit(
-        uint256 pid,
-        uint256 amount,
-        address to
-    ) external;
-
-    function lqdrPerBlock() external view returns (uint256);
-
-    function lpToken(uint256 pid) external view returns (address);
-
-    function userInfo(uint256 _pid, address _user)
-        external
-        view
-        returns (uint256, uint256);
-
-}
 
 interface ERC20Decimals {
     function decimals() external view returns (uint256);
@@ -64,7 +40,7 @@ interface IStrat {
     function getOraclePrice() external view returns (uint256);
 }
 
-contract jointLPHolderUniV2 is Ownable {
+contract jointLPHolderSolidly is Ownable {
 
     using SafeERC20 for IERC20;
     using Address for address;
@@ -83,11 +59,23 @@ contract jointLPHolderUniV2 is Ownable {
     address keeper; 
     address strategist;
 
-    IUniswapV2Pair public lp;
+    IBaseV1Pair public lp;
     IERC20[] public tokens;
     IERC20[] public rewardTokens;
 
-    IMasterChefv2 farm;
+    IOxLens public constant oxLens =
+        IOxLens(0xDA00137c79B30bfE06d04733349d98Cf06320e69);
+    address public oxPoolAddress;
+    address public stakingAddress;
+    address public constant solidlyRouter =
+        0xa38cd27185a464914D3046f0AB9d43356B34829D;
+
+    address public rewardToken0 =
+        address(0xc5A9848b9d145965d821AaeC8fA32aaEE026492d); // 0XDAO
+    address public rewardToken1 =
+        address(0x888EF71766ca594DED1F0FA3AE64eD2941740A20); // solid
+
+
     IUniswapV2Router01 router;
     address weth;
     uint256 farmPid;
@@ -96,32 +84,37 @@ contract jointLPHolderUniV2 is Ownable {
 
     constructor (
         address _lp, 
-        address _farm,
-        uint256 _pid,
-        address _router,
-        address _rewardToken
+        address _router
 
     ) public {
-        lp = IUniswapV2Pair(_lp);
-        IERC20(address(lp)).safeApprove(_router, uint256(-1));
+        lp = IBaseV1Pair(_lp);
+        IERC20(address(lp)).safeApprove(solidlyRouter, uint256(-1));
 
-        farmPid = _pid;
         IERC20 newToken0 = IERC20(lp.token0());
-        newToken0.approve(_router, uint256(-1));
+        newToken0.approve(solidlyRouter, uint256(-1));
         tokens.push(newToken0);
 
         IERC20 newToken1 = IERC20(lp.token1());
-        newToken1.approve(_router, uint256(-1));
+        newToken1.approve(solidlyRouter, uint256(-1));
         tokens.push(newToken1);
 
-        farm = IMasterChefv2(_farm);
+        oxPoolAddress = oxLens.oxPoolBySolidPool(_lp);
+        stakingAddress = IOxPool(oxPoolAddress).stakingAddress();
+
+        IERC20(address(lp)).safeApprove(address(oxPoolAddress), type(uint256).max);
+        IERC20(oxPoolAddress).safeApprove(
+            address(stakingAddress),
+            type(uint256).max
+        );
+
         router = IUniswapV2Router01(_router);
         weth = router.WETH();
-        rewardTokens.push(IERC20(_rewardToken));
+        rewardTokens.push(IERC20(rewardToken0));
+        rewardTokens.push(IERC20(rewardToken1));
 
-        IERC20(_rewardToken).approve(_router, uint256(-1));
-        lp.approve(_farm, uint256(-1));
-
+        IERC20(rewardToken0).safeApprove(solidlyRouter, type(uint256).max);
+        IERC20(weth).safeApprove(_router, type(uint256).max);
+        IERC20(rewardToken1).safeApprove(_router, type(uint256).max);
 
     }
 
@@ -204,7 +197,9 @@ contract jointLPHolderUniV2 is Ownable {
     }
 
     function removeFromFarmAuth() external onlyAuthorized {
-        farm.emergencyWithdraw(farmPid);
+
+        IMultiRewards(stakingAddress).withdraw(countLpPooled());
+        IOxPool(oxPoolAddress).withdrawLp(countLpPooled());
     }
 
     // called in emergency to pull all funds from LP and send tokens back to provider strats
@@ -291,13 +286,13 @@ contract jointLPHolderUniV2 is Ownable {
         if (debtRatio0 > debtRatio1.add(bpsRebalanceDiff)) {
             lpRemovePercent = (debtRatio0.sub(debtRatio1)).div(2).mul(_rebalancePercent).div(BASIS_PRECISION);
             _withdrawLp(lpRemovePercent);
-            swapExactFromTo(address(tokens[1]), address(tokens[0]), tokens[1].balanceOf(address(this)));
+            swapExactFromToSolid(address(tokens[1]), address(tokens[0]), tokens[1].balanceOf(address(this)));
         }
 
         if (debtRatio1 > debtRatio0.add(bpsRebalanceDiff)) {
             lpRemovePercent = (debtRatio1.sub(debtRatio0)).div(2).mul(_rebalancePercent).div(BASIS_PRECISION);
             _withdrawLp(lpRemovePercent);
-            swapExactFromTo(address(tokens[0]), address(tokens[1]), tokens[0].balanceOf(address(this)));
+            swapExactFromToSolid(address(tokens[0]), address(tokens[1]), tokens[0].balanceOf(address(this)));
         }
 
     }
@@ -441,8 +436,7 @@ contract jointLPHolderUniV2 is Ownable {
     }
 
     function countLpPooled() public view returns (uint256) {
-        (uint256 _amount, ) = farm.userInfo(farmPid, address(this));
-        return _amount;
+        return IMultiRewards(stakingAddress).balanceOf(address(this));
     }
 
     function _depositLp() internal {
@@ -451,9 +445,10 @@ contract jointLPHolderUniV2 is Ownable {
         uint256 _amount1 = tokens[1].balanceOf(address(this));
         if (_amount0 >0 && _amount1 >0){
 
-            router.addLiquidity(
+            ISolidlyRouter01(solidlyRouter).addLiquidity(
                 address(tokens[0]),
                 address(tokens[1]),
+                false,
                 _amount0,
                 _amount1,
                 _amount0.mul(slippageAdj).div(BASIS_PRECISION),
@@ -470,8 +465,10 @@ contract jointLPHolderUniV2 is Ownable {
     function _depositToFarm() internal {
         uint256 lpAmt = lp.balanceOf(address(this));
         if(lpAmt > 0) { 
-            farm.deposit(farmPid, lpAmt, address(this)); /// deposit LP tokens to farm
-        }
+            // Deposit
+            IOxPool(oxPoolAddress).depositLp(lpAmt);
+            // Stake
+            IMultiRewards(stakingAddress).stake(lpAmt);        }
 
     }
 
@@ -479,7 +476,8 @@ contract jointLPHolderUniV2 is Ownable {
         if (_amount > 0){
             uint256 _lpUnpooled = lp.balanceOf(address(this));
             if (_amount > _lpUnpooled){
-                farm.withdraw(farmPid, _amount.sub(_lpUnpooled), address(this));
+                IMultiRewards(stakingAddress).withdraw(_amount.sub(_lpUnpooled));
+                IOxPool(oxPoolAddress).withdrawLp(_amount.sub(_lpUnpooled));
             }
             
         }
@@ -519,9 +517,10 @@ contract jointLPHolderUniV2 is Ownable {
             _amount.mul(amount1).mul(slippageAdj).div(BASIS_PRECISION).div(
                 lpIssued
             );
-        router.removeLiquidity(
+        ISolidlyRouter01(solidlyRouter).removeLiquidity(
             address(tokens[0]),
             address(tokens[1]),
+            false,
             _amount,
             amount0Min,
             amount1Min,
@@ -535,12 +534,14 @@ contract jointLPHolderUniV2 is Ownable {
     }
 
     function _harvestInternal() internal {
-        //gauge.claim_rewards();
-        farm.harvest(farmPid, address(this));
         
+        IMultiRewards(stakingAddress).getReward();
+
         for (uint256 i = 0; i < rewardTokens.length; i++){
             uint256 farmAmount = rewardTokens[i].balanceOf(address(this));
-            _sellRewardTokens(rewardTokens[i],farmAmount);
+            if (farmAmount > 0) {
+                _sellRewardTokens(rewardTokens[i],farmAmount);
+            }
         }
 
     }
@@ -569,26 +570,63 @@ contract jointLPHolderUniV2 is Ownable {
         uint256 _slippage = expectedAmountOut.sub(amounts[amounts.length - 1]);        
     }
 
+    function swapExactFromToSolid(
+        address _swapFrom,
+        address _swapTo,
+        uint256 _amountIn
+    )   internal 
+        returns (uint256 _slippage)
+    {
+        IERC20 fromToken = IERC20(_swapFrom);
+        uint256 fromBalance = fromToken.balanceOf(address(this));
+        uint256 expectedAmountOut = convertAtoB(_swapFrom, _swapTo, _amountIn);
+        // do this to avoid small swaps that will fail
+        if (fromBalance < 1 || expectedAmountOut < 1) return (0);
+        uint256 minOut = 0;
+        uint256[] memory amounts =
+            ISolidlyRouter01(solidlyRouter).swapExactTokensForTokensSimple(
+                _amountIn,
+                minOut,
+                address(_swapFrom), 
+                address(_swapTo),
+                false,
+                address(this),
+                now
+            );
+        uint256 _slippage = expectedAmountOut.sub(amounts[amounts.length - 1]);        
+    }
+
     // this sells reward tokenss in proportion to their debt & automatically sends proceeds to relevant strategy 
     function _sellRewardTokens(IERC20 rewardToken, uint256 farmAmount) internal {
 
         //uint256 farmAmount = rewardToken.balanceOf(address(this));
-        
+        if (address(rewardToken) == rewardToken0) {
+            swapExactFromToSolid(rewardToken0, weth, IERC20(rewardToken0).balanceOf(address(this)));
+            rewardToken = IERC20(weth);
+        }
 
         for (uint256 i = 0; i < numTokens; i++){
+
             uint256 balance = rewardToken.balanceOf(address(this));
-            address strategyTo = strategies[tokens[i]];
             uint256 saleAmount = farmAmount.mul(getDebtProportion(address(tokens[i]))).div(BASIS_PRECISION);
-            router.swapExactTokensForTokens(
-                Math.min(saleAmount,balance),
-                0,
-                getTokenOutPath(address(rewardToken), address(tokens[i])),
-                address(this),
-                now
-            );
-            
+
+            if (address(rewardToken) != address(tokens[i])){
+                router.swapExactTokensForTokens(
+                    Math.min(saleAmount,balance),
+                    0,
+                    getTokenOutPath(address(rewardToken), address(tokens[i])),
+                    address(this),
+                    now
+                );
+            }
+        }
+
+        for (uint256 i = 0; i < numTokens; i++){
+            address strategyTo = strategies[tokens[i]];
             tokens[i].transfer(strategyTo, tokens[i].balanceOf(address(this)));
         }
+
+
     }
 
     function getDebtProportion(address _token) public view returns(uint256) {

@@ -159,11 +159,16 @@ def test_profitable_harvest(
     assert strategy.debtJoint() > 0
 
 
-    harvest = interface.ERC20(conf['harvest_tokens'][0])
-    harvestWhale = accounts.at('0xa48d959AE2E88f1dAA7D5F611E01908106dE7598', True)
-    sendAmount = 100 * 1e18
-    for t in range(1) :
-        harvest.transfer(jointLP, sendAmount, {'from': harvestWhale})
+    n_harvests = 5
+    for t in range(n_harvests) :
+
+        #here we send some rewards 
+        for i in range(len(conf['harvest_tokens'])) : 
+            harvest = interface.ERC20(conf['harvest_tokens'][i])
+            harvestWhale = accounts.at(conf['harvestWhales'][i], True)
+            sendAmount = int(harvest.balanceOf(harvestWhale) / 100)
+            harvest.transfer(jointLP, sendAmount, {'from': harvestWhale})
+
         chain.sleep(1)
         chain.mine(1)
         jointLP.harvestRewards({'from' : gov})
