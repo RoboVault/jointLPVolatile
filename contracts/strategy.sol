@@ -35,6 +35,7 @@ interface IJointVault {
     function addToJoint() external;
     function calculateProfit(address _token) external view returns(uint256 _loss, uint256 _profit);
     function withdraw(uint256 _debtProportion) external;
+    function allStratsInProfit() external view returns(bool);
 }
 
 contract Strategy is BaseStrategy {
@@ -230,6 +231,11 @@ contract Strategy is BaseStrategy {
         forceHarvestTriggerOnce = _forceHarvestTriggerOnce;
     }
 
+    function isInProfit() public view returns(bool) {
+        uint256 totalAssets = estimatedTotalAssets();
+        uint256 totalDebt = _getTotalDebt();
+        return(totalAssets > totalDebt);
+    }
 
     function harvestTrigger(uint256 callCostInWei) public view virtual override returns (bool) {
         StrategyParams memory params = vault.strategies(address(this));
@@ -239,13 +245,9 @@ contract Strategy is BaseStrategy {
             return true;
         }
 
-        uint256 totalAssets = estimatedTotalAssets();
-        uint256 totalDebt = _getTotalDebt();
-        bool isInProfit = totalAssets > totalDebt;
-
         // harvest no matter what once we reach our maxDelay
         if (block.timestamp.sub(params.lastReport) > maxReportDelay) {
-            return isInProfit;
+            return jointVault.allStratsInProfit();
         }
 
         // otherwise, we don't harvest

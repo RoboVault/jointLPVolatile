@@ -62,6 +62,7 @@ interface IStrat {
     function debtJoint() external view returns (uint256);
     function adjustJointDebtOnWithdraw(uint256 _debtProportion) external;
     function getOraclePrice() external view returns (uint256);
+    function isInProfit() external view returns(bool);
 }
 
 /// @title Manages LP from two provider strats
@@ -380,6 +381,13 @@ contract jointLPHolderUniV2 is Ownable {
 
     function calcDebtRatio() public view returns(uint256, uint256) {
         return(calcDebtRatioToken(0), calcDebtRatioToken(1));
+    }
+
+    /// @notice checks that both provider strategies are in profit 
+    function allStratsInProfit() public view returns(bool) {
+        return(IStrat(strategies[tokens[0]]).isInProfit() && IStrat(strategies[tokens[1]]).isInProfit());
+
+
     }
 
     function balanceToken(uint256 _tokenIndex) public view returns(uint256) {

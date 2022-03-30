@@ -349,6 +349,13 @@ contract jointLPHolderSolidly is Ownable {
         return(calcDebtRatioToken(0), calcDebtRatioToken(1));
     }
 
+    /// @notice checks that both provider strategies are in profit 
+    function allStratsInProfit() public view returns(bool) {
+        return(IStrat(strategies[tokens[0]]).isInProfit() && IStrat(strategies[tokens[1]]).isInProfit());
+
+
+    }
+
     function balanceToken(uint256 _tokenIndex) public view returns(uint256) {
         uint256 lpAmount = getLpReserves(_tokenIndex);
         uint256 tokenBalance = lpBalance().mul(lpAmount).div(lp.totalSupply());

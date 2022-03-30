@@ -550,6 +550,8 @@ def test_migration_offsetA(
         amount = amounts[i]
         token.approve(vault.address, amount, {"from": user})
         vault.deposit(amount, {"from": user})
+        chain.sleep(5)
+        chain.mine(5)
         strategy.harvest()
         assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
@@ -608,6 +610,8 @@ def test_migration_offsetB(
         amount = amounts[i]
         token.approve(vault.address, amount, {"from": user})
         vault.deposit(amount, {"from": user})
+        chain.sleep(5)
+        chain.mine(5)
         strategy.harvest()
         assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
