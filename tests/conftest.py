@@ -12,21 +12,23 @@ BOO = '0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE'
 lqdrMasterChef = '0x6e2ad6527901c9664f016466b8DA1357a004db0f'
 lqdr = '0x10b620b2dbAC4Faa7D7FFD71Da486f5D44cd86f9'
 
-'Stables'
+#TOKENS
 USDC = '0x04068DA6C83AFCFA0e13ba15A6696662335D5B75'
 FUSDT = '0x049d68029688eAbF473097a2fC38ef61633A3C7A'
 MIM = '0x82f0B8B456c1A451378467398982d4834b6829c1'
 DAI = '0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E'
 WFTM = '0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83'
 FRAX = '0xdc301622e621166BD8E82f2cA0A26c13Ad0BE355'
+WETH = '0x74b23882a30290451A17c44f4F05243b6b58C76d'
 
-'SCREAM Lend Tokens'
+#SCREAM Lend Tokens
 SCUSDC = '0xE45Ac34E528907d0A0239ab5Db507688070B20bf'
 SCFUSDT = '0x02224765BC8D54C21BB51b0951c80315E1c263F9'
 SCMIM =  '0x90B7C21Be43855aFD2515675fc307c084427404f'
 SCDAI = '0x8D9AED9882b4953a0c9fa920168fa1FDfA0eBE75'
 SCWFTM = '0x5AA53f03197E08C4851CAD8C92c7922DA5857E5d'
 SCFRAX = '0x4E6854EA84884330207fB557D1555961D85Fc17E'
+SCWETH = '0xC772BA6C2c28859B7a0542FAa162a56115dDCE25'
 
 screamComptroller = '0x260E596DAbE3AFc463e75B6CC05d8c46aCAcFB09'
 hndComptroller = '0x0F390559F258eB8591C8e31Cf0905E97cf36ACE2'
@@ -37,7 +39,8 @@ scTokenDict = {
     MIM : SCMIM,
     DAI : SCDAI,
     WFTM : SCWFTM,
-    FRAX : SCFRAX
+    FRAX : SCFRAX,
+    WETH : SCWETH
 
 }
 
@@ -113,6 +116,19 @@ CONFIG = {
         'lpType' : 'uniV2'
     },
 
+    'WETHFTMSpookyLQDR': {
+        'LP': '0xf0702249F4D3A25cD3DED7859a165693685Ab577',
+        'tokens' : [WETH, WFTM],
+        'farm' : lqdrMasterChef,
+        'farmPID' : 15,
+        'comptroller' : screamComptroller,
+        'harvest_tokens': [lqdr],
+        'harvestWhales' : [lqdrMasterChef],
+        'compToken': SCREAM,
+        'router': SPOOKY_ROUTER,
+        'lpType' : 'uniV2'
+    },
+
     'FRAXFTMSOLID' : {
         'LP': '0x9ae95682bde174993ecb818Cc23E8607d2e54667',
         'tokens' : [FRAX, WFTM],
@@ -131,7 +147,7 @@ CONFIG = {
 
 @pytest.fixture
 def conf():
-    yield CONFIG['USDCFTMSpookyLQDR']
+    yield CONFIG['WETHFTMSpookyLQDR']
 
 @pytest.fixture
 def gov(accounts):
@@ -180,6 +196,8 @@ def amounts(accounts, tokens, user, whales):
         reserve = accounts.at(whale, force=True)
         token = tokens[i]
         amount = 10_000 * 10 ** token.decimals()
+        # we need some tokens left over to do price offsets 
+        amount = int(min(amount, 0.6*token.balanceOf(reserve)))
         token.transfer(user, amount, {"from": reserve})
         i += 1
         amounts = amounts + [amount]

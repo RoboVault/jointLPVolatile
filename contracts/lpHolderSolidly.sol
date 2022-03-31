@@ -38,6 +38,7 @@ interface IStrat {
     function debtJoint() external view returns (uint256);
     function adjustJointDebtOnWithdraw(uint256 _debtProportion) external;
     function getOraclePrice() external view returns (uint256);
+    function isInProfit() external view returns(bool);
 }
 
 contract jointLPHolderSolidly is Ownable {
