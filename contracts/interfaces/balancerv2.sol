@@ -25,6 +25,8 @@ interface IBalancerPool is IERC20 {
 
     function getPoolId() external view returns (bytes32 poolId);
 
+    function getNormalizedWeights() external view returns(uint256[] memory weights);
+
     function symbol() external view returns (string memory s);
 
     function onSwap(
