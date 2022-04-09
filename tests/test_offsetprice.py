@@ -235,7 +235,7 @@ def test_reduce_debt_offsetA(
         #chain.mine(1)
 
         strategy.harvest()
-        assert strategy.estimatedTotalAssets() < 10 ** (token.decimals() - 3) # near zero
+        assert strategy.estimatedTotalAssets() / amounts[i] < 0.005
 
 
 def test_operation_offsetB(
@@ -343,7 +343,7 @@ def test_reduce_debt_offsetB(
         #chain.mine(1)
 
         strategy.harvest()
-        assert strategy.estimatedTotalAssets() < 10 ** (token.decimals() - 3) # near zero
+        assert strategy.estimatedTotalAssets() / amounts[i] < 0.005
 
 
 

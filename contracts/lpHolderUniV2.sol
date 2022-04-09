@@ -63,6 +63,7 @@ interface IStrat {
     function adjustJointDebtOnWithdraw(uint256 _debtProportion) external;
     function getOraclePrice() external view returns (uint256);
     function isInProfit() external view returns(bool);
+    function estimatedTotalAssets() external view returns(uint256); 
 }
 
 /// @title Manages LP from two provider strats
@@ -83,6 +84,7 @@ contract jointLPHolderUniV2 is Ownable {
     uint256 internal numTokens = 2;
     uint256 public slippageAdj = 9900; // 99%
     uint256 constant BASIS_PRECISION = 10000;
+    uint256 constant STD_PRECISION = 1e8;
     uint256 public rebalancePercent = 10000;
     /// @notice to make sure we don't try to do tiny rebalances with insufficient swap amount when withdrawing have some buffer 
     uint256 bpsRebalanceDiff = 50;
@@ -94,6 +96,9 @@ contract jointLPHolderUniV2 is Ownable {
 
     address keeper; 
     address strategist;
+
+    // this relative to STD_PRECISION so 1e14 is 1 / 1e4 
+    uint256 lpDust = 1e4; 
 
     IUniswapV2Pair public lp;
     IERC20[] public tokens;
@@ -145,6 +150,10 @@ contract jointLPHolderUniV2 is Ownable {
     function setKeeper(address _keeper) external onlyAuthorized {
         require(_keeper != address(0));
         keeper = _keeper;
+    }
+
+    function setLpDust(uint256 _lpDust) external onlyAuthorized {
+        lpDust = _lpDust;
     }
 
 
@@ -257,18 +266,34 @@ contract jointLPHolderUniV2 is Ownable {
         for (uint256 i = 0; i < numTokens; i++){
             amountInLp = getLpReserves(i);
             wantAmount = IStrat(strategies[tokens[i]]).wantAvailable();
-            lpBalancePull = Math.min(lpBalancePull, wantAmount.mul(BASIS_PRECISION).div(amountInLp));
+            lpBalancePull = Math.min(lpBalancePull, wantAmount.mul(STD_PRECISION).div(amountInLp));
         }
+        
+        bool providerPercentLargerThanDust = lpBalancePull > lpDust;
+
+        // here we make sure the % of want added from both strats is more than lpDust 
+        if (providerPercentLargerThanDust) {
+            _processWantFromProviders(lpBalancePull);
+        }
+
+        
+    
+
+
+    }
+
+    function _processWantFromProviders(uint256 _lpBalancePull) internal {
+        uint256 amountInLp;
+        uint256 wantAmount; 
 
         for (uint256 i = 0; i < numTokens; i++){
             amountInLp = getLpReserves(i);
-            wantAmount = Math.min(IStrat(strategies[tokens[i]]).wantAvailable(), amountInLp.mul(lpBalancePull).div(BASIS_PRECISION));
+            wantAmount = Math.min(IStrat(strategies[tokens[i]]).wantAvailable(), amountInLp.mul(_lpBalancePull).div(STD_PRECISION));
             IStrat(strategies[tokens[i]]).provideWant(wantAmount);
         }
 
         _depositLp();
         _depositToFarm();
-
 
     }
 
@@ -531,6 +556,9 @@ contract jointLPHolderUniV2 is Ownable {
     // then we rebalance based on the portion being withdrawn this means each provider strat takes roughly the same P&L 
     // we then withdraw the required LP and return the required tokens to each provider strat & adjust the jointDebt paramater
     function withdraw(uint256 _debtProportion) external onlyStrategies {
+        // when withdrawing small amounts transaction will potentially fail
+        _debtProportion = Math.max(_debtProportion, 50);
+
         require(_testPriceSource());
         _rebalanceDebtInternal(_debtProportion);
         _withdrawLp(_debtProportion);

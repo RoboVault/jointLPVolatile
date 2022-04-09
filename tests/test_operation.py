@@ -166,7 +166,7 @@ def test_profitable_harvest(
         for i in range(len(conf['harvest_tokens'])) : 
             harvest = interface.ERC20(conf['harvest_tokens'][i])
             harvestWhale = accounts.at(conf['harvestWhales'][i], True)
-            sendAmount = int(harvest.balanceOf(harvestWhale) / 100)
+            sendAmount = int(harvest.balanceOf(harvestWhale) / 10000)
             harvest.transfer(jointLP, sendAmount, {'from': harvestWhale})
 
         chain.sleep(1)

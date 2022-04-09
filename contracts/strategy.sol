@@ -65,6 +65,10 @@ contract Strategy is BaseStrategy {
     address weth;
     // amount of Debt to Joint Strategy 
     uint256 public debtJoint; 
+    // this % of want must be available before adding to Joint 
+    uint256 public debtJointThreshold = 500; 
+    // this % of want must be in lend before calling redeemWant (avoids issue with tiny amounts blocking withdrawals)
+    uint256 public lendDustPercent = 10; 
     bool internal forceHarvestTriggerOnce;
 
     constructor(
@@ -227,6 +231,14 @@ contract Strategy is BaseStrategy {
         forceHarvestTriggerOnce = _forceHarvestTriggerOnce;
     }
 
+    function setLendDustPercent(uint256 _lendDustPercent) external onlyAuthorized {
+        lendDustPercent = _lendDustPercent;
+    }
+
+    function setJointDebtThreshold(uint256 _debtJointThreshold) external onlyAuthorized {
+        debtJointThreshold = _debtJointThreshold;
+    }
+
     function isInProfit() public view returns(bool) {
         uint256 totalAssets = estimatedTotalAssets();
         uint256 totalDebt = _getTotalDebt();
@@ -259,7 +271,12 @@ contract Strategy is BaseStrategy {
             return;
         }
 
-        jointVault.addToJoint();
+        uint256 stratPercentFree = wantAvailable().mul(BASIS_PRECISION).div(estimatedTotalAssets());
+
+        if (stratPercentFree > debtJointThreshold){
+            jointVault.addToJoint();
+        }
+
         uint256 wantAfter = balanceOfWant();
 
         if (wantAfter > 0) { 
@@ -279,8 +296,10 @@ contract Strategy is BaseStrategy {
             _redeemWant(redeemAmount);
         }
 
-        want.transfer(address(jointVault), _wantAmount);
-        debtJoint = debtJoint.add(_wantAmount);
+        uint256 transferAmount = Math.min(_wantAmount, want.balanceOf(address(this)));
+
+        want.transfer(address(jointVault), transferAmount);
+        debtJoint = debtJoint.add(transferAmount);
 
     }
 
@@ -362,7 +381,10 @@ contract Strategy is BaseStrategy {
     }
 
     function _redeemWant(uint256 _redeem_amount) internal {
-        if (_redeem_amount > 0){
+        // we add this in as can get some weird errors when tiny amount of lend left blocking withdrawals
+        uint256 redeemDust = _getTotalDebt().mul(lendDustPercent).div(BASIS_PRECISION);
+        
+        if (_redeem_amount > redeemDust){
             cTokenLend.redeemUnderlying(_redeem_amount);
         }
     }
