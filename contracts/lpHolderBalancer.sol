@@ -82,7 +82,7 @@ contract jointLPHolderBalancer is Ownable {
     // helps avoid sandwhich attacks
     bool public doPriceCheck = true;
     uint256 internal numTokens = 2;
-    uint256 public slippageAdj = 9990; // 99.9%
+    uint256 public slippageAdj = 9500; // 99.9%
     uint256 constant BASIS_PRECISION = 10000;
     uint256 constant TOKEN_WEIGHT_PRECISION = 1000000000000000000;
     uint256 public rebalancePercent = 10000;
@@ -335,17 +335,19 @@ contract jointLPHolderBalancer is Ownable {
         uint256 tokenWeight1 = tokenWeights[tokens[1]];
 
         if (debtRatio0 > debtRatio1.add(bpsRebalanceDiff)) {
-            lpRemovePercent = (debtRatio0.sub(debtRatio1)).mul(TOKEN_WEIGHT_PRECISION).div(tokenWeight0).mul(_rebalancePercent).div(BASIS_PRECISION);
-            _withdrawLp(lpRemovePercent);
-            uint256 _lpOut = lpRemovePercent.mul(lpBalance()).div(BASIS_PRECISION);
-            _removeLpRebalance(_lpOut, 1);
-        }
-
-        if (debtRatio1 > debtRatio0.add(bpsRebalanceDiff)) {
-            lpRemovePercent = (debtRatio1.sub(debtRatio0)).mul(TOKEN_WEIGHT_PRECISION).div(tokenWeight1).mul(_rebalancePercent).div(BASIS_PRECISION);
+            uint256 weightAdj = BASIS_PRECISION.mul(tokenWeight1).div(tokenWeight0);
+            lpRemovePercent = (debtRatio0.sub(debtRatio1)).mul(BASIS_PRECISION).div(BASIS_PRECISION.add(weightAdj)).mul(_rebalancePercent).div(BASIS_PRECISION);
             _withdrawLp(lpRemovePercent);
             uint256 _lpOut = lpRemovePercent.mul(lpBalance()).div(BASIS_PRECISION);
             _removeLpRebalance(_lpOut, 0);
+        }
+
+        if (debtRatio1 > debtRatio0.add(bpsRebalanceDiff)) {
+            uint256 weightAdj = BASIS_PRECISION.mul(tokenWeight0).div(tokenWeight1);
+            lpRemovePercent = (debtRatio1.sub(debtRatio0)).mul(BASIS_PRECISION).div(BASIS_PRECISION.add(weightAdj)).mul(_rebalancePercent).div(BASIS_PRECISION);
+            _withdrawLp(lpRemovePercent);
+            uint256 _lpOut = lpRemovePercent.mul(lpBalance()).div(BASIS_PRECISION);
+            _removeLpRebalance(_lpOut, 1);
         }
 
     }
@@ -575,7 +577,9 @@ contract jointLPHolderBalancer is Ownable {
             if (i == _tokenIndex){
                 uint256 wantInLp = getLpReserves(i);
                 uint256 lpSupply = lp.totalSupply();
-                amountsOut[i] = wantInLp.mul(_lpOut).div(lpSupply).mul(TOKEN_WEIGHT_PRECISION).div(tokenWeights[tokens[i]]);
+                // SHOULD BE MULTIPLIED TO ADJ FOR TOKEN WEIGHTS
+                uint256 amountOutRaw = wantInLp.mul(_lpOut).div(lpSupply).mul(TOKEN_WEIGHT_PRECISION).div(tokenWeights[tokens[i]]);
+                amountsOut[i] = amountOutRaw.mul(slippageAdj).div(BASIS_PRECISION);
                 minAmountsOut[i] = amountsOut[i].mul(minOut).div(BASIS_PRECISION);
             }
         }

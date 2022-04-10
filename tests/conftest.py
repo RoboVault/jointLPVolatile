@@ -215,7 +215,7 @@ def amounts(accounts, tokens, user, whales):
         token = tokens[i]
         amount = 10_000 * 10 ** token.decimals()
         # we need some tokens left over to do price offsets 
-        amount = int(min(amount, 0.6*token.balanceOf(reserve)))
+        amount = int(min(amount, 0.2*token.balanceOf(reserve)))
         token.transfer(user, amount, {"from": reserve})
         i += 1
         amounts = amounts + [amount]
@@ -271,6 +271,14 @@ def jointLP(pm, gov, conf, keeper ,rewards, guardian, management, jointLPHolderB
 
     jointLP.setKeeper(keeper)
     yield jointLP
+
+@pytest.fixture
+def priceOffsetter(gov, conf, PriceOffsetter, tokens):
+    priceOffsetter = PriceOffsetter.deploy(tokens[0], tokens[1], conf['LP'], BALANCERVAULT, {'from' : gov})
+    yield priceOffsetter
+
+
+
 
 @pytest.fixture
 def vaults(pm, gov, rewards, guardian, management, tokens):
