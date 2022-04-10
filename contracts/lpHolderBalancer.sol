@@ -82,14 +82,14 @@ contract jointLPHolderBalancer is Ownable {
     // helps avoid sandwhich attacks
     bool public doPriceCheck = true;
     uint256 internal numTokens = 2;
-    uint256 public slippageAdj = 9500; // 99.9%
+    uint256 public slippageAdj = 9900; // 99.9%
     uint256 constant BASIS_PRECISION = 10000;
     uint256 constant TOKEN_WEIGHT_PRECISION = 1000000000000000000;
     uint256 public rebalancePercent = 10000;
     /// @notice to make sure we don't try to do tiny rebalances with insufficient swap amount when withdrawing have some buffer 
     uint256 bpsRebalanceDiff = 50;
     // @we rebalance if debt ratio for either assets goes above this ratio 
-    uint256 debtUpper = 10250;
+    uint256 debtUpper = 10200;
     // @max difference between LP & oracle prices to complete rebalance / withdraw 
     uint256 public priceSourceDiff = 500; // 5% Default
     bool public initialisedStrategies = false; 
@@ -559,7 +559,7 @@ contract jointLPHolderBalancer is Ownable {
         uint256[] memory minAmountsOut = new uint256[](numTokens);
 
         for (uint256 i = 0; i < numTokens; i++){
-            amountsOut[i] = debtOutstanding(address(tokens[i])).mul(_debtProportion).div(BASIS_PRECISION).mul(slippageAdj).div(BASIS_PRECISION);
+            amountsOut[i] = balanceToken(i).mul(_debtProportion).div(BASIS_PRECISION).mul(slippageAdj).div(BASIS_PRECISION);
             minAmountsOut[i] = amountsOut[i].mul(minOut).div(BASIS_PRECISION);
         }
 

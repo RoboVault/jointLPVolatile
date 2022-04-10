@@ -28,6 +28,13 @@ def offSetDebtRatio(jointLP, priceOffsetter, tokens ,tokenIndex, swapPct, user):
     lp = Contract(lpAddress)
     assert lp.balanceOf(priceOffsetter) > 0
 
+    debtRatio0 = jointLP.calcDebtRatioToken(0)
+    debtRatio1 = jointLP.calcDebtRatioToken(1)
+
+    print('Debt Ratio A :  {0}'.format(debtRatio0))
+    print('Debt Ratio B :  {0}'.format(debtRatio1))
+
+
 
 def test_rebalanceDebtA(
     chain, accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf, priceOffsetter
@@ -56,18 +63,13 @@ def test_rebalanceDebtA(
         assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     tokenIndex = 0
-    swapPct = 0.03
+    swapPct = 0.02
     offSetDebtRatio(jointLP, priceOffsetter, tokens ,tokenIndex, swapPct, user)
     chain.sleep(5)
     chain.mine(5)
     #assert False
     assert strategy.debtJoint() > 0
 
-    debtRatio0 = jointLP.calcDebtRatioToken(0)
-    debtRatio1 = jointLP.calcDebtRatioToken(1)
-
-    print('Debt Ratio A :  {0}'.format(debtRatio0))
-    print('Debt Ratio B :  {0}'.format(debtRatio1))
     # set price source to off
     jointLP.setPriceSource(False, 500, {'from' : gov})
 
@@ -107,18 +109,13 @@ def test_rebalanceDebtB(
         assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     tokenIndex = 1
-    swapPct = 0.1
+    swapPct = 0.01
     offSetDebtRatio(jointLP, priceOffsetter, tokens ,tokenIndex, swapPct, user)
     chain.sleep(5)
     chain.mine(5)
     #assert False
     assert strategy.debtJoint() > 0
 
-    debtRatio0 = jointLP.calcDebtRatioToken(0)
-    debtRatio1 = jointLP.calcDebtRatioToken(1)
-
-    print('Debt Ratio A :  {0}'.format(debtRatio0))
-    print('Debt Ratio B :  {0}'.format(debtRatio1))
 
     # set price source to off
     jointLP.setPriceSource(False, 500, {'from' : gov})
@@ -161,7 +158,7 @@ def test_operation_offsetA(
         assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     tokenIndex = 0
-    swapPct = 0.02
+    swapPct = 0.01
     offSetDebtRatio(jointLP, priceOffsetter, tokens ,tokenIndex, swapPct, user)
     chain.sleep(5)
     chain.mine(5)
@@ -199,14 +196,6 @@ def test_reduce_debt_offsetA(
         vault.deposit(amount, {"from": user})
         assert token.balanceOf(vault.address) == amount
         
-    tokenIndex = 0
-    swapPct = 0.02
-    offSetDebtRatio(jointLP, priceOffsetter, tokens ,tokenIndex, swapPct, user)
-    chain.sleep(5)
-    chain.mine(5)
-
-    # set price source to off
-    jointLP.setPriceSource(False, 500, {'from' : gov})
 
 
     for i in range(len(tokens)) : 
@@ -222,6 +211,16 @@ def test_reduce_debt_offsetA(
     chain.mine(5)
     #assert False
     assert strategy.debtJoint() > 0
+
+    tokenIndex = 0
+    swapPct = 0.01
+    offSetDebtRatio(jointLP, priceOffsetter, tokens ,tokenIndex, swapPct, user)
+    chain.sleep(5)
+    chain.mine(5)
+
+    # set price source to off
+    jointLP.setPriceSource(False, 500, {'from' : gov})
+
 
     for i in range(len(tokens)) : 
         token = tokens[i]
@@ -263,7 +262,7 @@ def test_operation_offsetB(
         assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     tokenIndex = 1
-    swapPct = 0.02
+    swapPct = 0.01
     offSetDebtRatio(jointLP, priceOffsetter, tokens ,tokenIndex, swapPct, user)
     chain.sleep(5)
     chain.mine(5)
@@ -301,15 +300,6 @@ def test_reduce_debt_offsetB(
         vault.deposit(amount, {"from": user})
         assert token.balanceOf(vault.address) == amount
         
-    tokenIndex = 1
-    swapPct = 0.02
-    offSetDebtRatio(jointLP, priceOffsetter, tokens ,tokenIndex, swapPct, user)
-    chain.sleep(5)
-    chain.mine(5)
-
-    # set price source to off
-    jointLP.setPriceSource(False, 500, {'from' : gov})
-
 
     for i in range(len(tokens)) : 
         token = tokens[i]
@@ -324,6 +314,17 @@ def test_reduce_debt_offsetB(
     chain.mine(5)
     #assert False
     assert strategy.debtJoint() > 0
+
+    tokenIndex = 1
+    swapPct = 0.01
+    offSetDebtRatio(jointLP, priceOffsetter, tokens ,tokenIndex, swapPct, user)
+    chain.sleep(5)
+    chain.mine(5)
+
+    # set price source to off
+    jointLP.setPriceSource(False, 500, {'from' : gov})
+
+
 
     for i in range(len(tokens)) : 
         token = tokens[i]
@@ -538,7 +539,9 @@ def test_migration_offsetA(
     user,
     RELATIVE_APPROX,
     whales,
-    Contract
+    Contract,
+    jointLP,
+    priceOffsetter
 ):
     # Deposit to the vault and harvest
     for i in range(len(tokens)) : 
@@ -598,7 +601,9 @@ def test_migration_offsetB(
     user,
     RELATIVE_APPROX,
     whales,
-    Contract
+    Contract,
+    jointLP, 
+    priceOffsetter
 ):
     # Deposit to the vault and harvest
     for i in range(len(tokens)) : 
