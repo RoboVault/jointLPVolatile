@@ -84,7 +84,7 @@ contract jointLPHolderUniV2 is Ownable {
     uint256 internal numTokens = 2;
     uint256 public slippageAdj = 9900; // 99%
     uint256 constant BASIS_PRECISION = 10000;
-    uint256 constant STD_PRECISION = 1e8;
+    uint256 constant STD_PRECISION = 1e12;
     uint256 public rebalancePercent = 10000;
     /// @notice to make sure we don't try to do tiny rebalances with insufficient swap amount when withdrawing have some buffer 
     uint256 bpsRebalanceDiff = 50;
