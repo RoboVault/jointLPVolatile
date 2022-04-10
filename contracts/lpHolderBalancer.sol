@@ -82,8 +82,9 @@ contract jointLPHolderBalancer is Ownable {
     // helps avoid sandwhich attacks
     bool public doPriceCheck = true;
     uint256 internal numTokens = 2;
-    uint256 public slippageAdj = 9900; // 99%
+    uint256 public slippageAdj = 9990; // 99.9%
     uint256 constant BASIS_PRECISION = 10000;
+    uint256 constant TOKEN_WEIGHT_PRECISION = 1000000000000000000;
     uint256 public rebalancePercent = 10000;
     /// @notice to make sure we don't try to do tiny rebalances with insufficient swap amount when withdrawing have some buffer 
     uint256 bpsRebalanceDiff = 50;
@@ -97,7 +98,7 @@ contract jointLPHolderBalancer is Ownable {
     address strategist;
 
     bytes32 public balancerPoolId;
-    IBalancerVault internal balancerVault;
+    IBalancerVault internal balancerVault = IBalancerVault(0x20dd72Ed959b6147912C2e529F0a0C651c33c9ce);
     IBalancerPool internal lp;
     IAsset[] internal assets;
 
@@ -119,7 +120,6 @@ contract jointLPHolderBalancer is Ownable {
         address _lp, 
         address _farm,
         uint256 _pid,
-        address _balancerVault,
         address _rewardToken,
         address _router,
         uint256 _minOut
@@ -128,33 +128,27 @@ contract jointLPHolderBalancer is Ownable {
         lp = IBalancerPool(_lp);
 
         balancerPoolId = lp.getPoolId();
-        IERC20(address(lp)).safeApprove(_router, uint256(-1));
-        balancerVault = IBalancerVault(_balancerVault);
+        lp.approve(address(balancerVault), uint256(-1));
         (IERC20[] memory poolTokens,,) = balancerVault.getPoolTokens(balancerPoolId);
         assets = new IAsset[](numTokens);
         uint256[] memory weights = lp.getNormalizedWeights();
 
-        for (uint i = 0; i < numTokens; i++){
-            tokens[i] = IERC20(address(poolTokens[i]));
+        for (uint256 i = 0; i < numTokens; i++){
+            tokens.push(IERC20(poolTokens[i]));
             tokens[i].approve(address(balancerVault), uint256(-1));
             assets[i] = IAsset(address(tokens[i]));
             tokenWeights[tokens[i]] = weights[i];
         }
-
+        
         farmPid = _pid;
-
-
-
         farm = IMasterChefv2(_farm);
         router = IUniswapV2Router01(_router);
         weth = router.WETH();
         rewardTokens.push(IERC20(_rewardToken));
-
         IERC20(_rewardToken).approve(_router, uint256(-1));
         lp.approve(_farm, uint256(-1));
-
         minOut = _minOut;
-
+        
     }
 
     function setStrategist(address _strategist) external onlyAuthorized {
@@ -333,43 +327,27 @@ contract jointLPHolderBalancer is Ownable {
     // we then swap the asset which has the lower debt ratio for the asset with higher debt ratio 
     function _rebalanceDebtInternal(uint256 _rebalancePercent) internal {
         // this will be the % of balance for either short A or short B swapped 
-        uint256 swapAmt;
         uint256 lpRemovePercent;
         uint256 debtRatio0 = calcDebtRatioToken(0);
         uint256 debtRatio1 = calcDebtRatioToken(1);
 
+        uint256 tokenWeight0 = tokenWeights[tokens[0]];
+        uint256 tokenWeight1 = tokenWeights[tokens[1]];
 
-        //. @notice we add some noise to check there is big enough difference between the debt ratios (0.5%) as we also call this during liquidate Position All
         if (debtRatio0 > debtRatio1.add(bpsRebalanceDiff)) {
-            lpRemovePercent = (debtRatio0.sub(debtRatio1)).div(2).mul(_rebalancePercent).div(BASIS_PRECISION);
+            lpRemovePercent = (debtRatio0.sub(debtRatio1)).mul(TOKEN_WEIGHT_PRECISION).div(tokenWeight0).mul(_rebalancePercent).div(BASIS_PRECISION);
             _withdrawLp(lpRemovePercent);
-            swapExactFromTo(address(tokens[1]), address(tokens[0]), tokens[1].balanceOf(address(this)));
+            uint256 _lpOut = lpRemovePercent.mul(lpBalance()).div(BASIS_PRECISION);
+            _removeLpRebalance(_lpOut, 1);
         }
 
         if (debtRatio1 > debtRatio0.add(bpsRebalanceDiff)) {
-            lpRemovePercent = (debtRatio1.sub(debtRatio0)).div(2).mul(_rebalancePercent).div(BASIS_PRECISION);
+            lpRemovePercent = (debtRatio1.sub(debtRatio0)).mul(TOKEN_WEIGHT_PRECISION).div(tokenWeight1).mul(_rebalancePercent).div(BASIS_PRECISION);
             _withdrawLp(lpRemovePercent);
-            swapExactFromTo(address(tokens[0]), address(tokens[1]), tokens[0].balanceOf(address(this)));
+            uint256 _lpOut = lpRemovePercent.mul(lpBalance()).div(BASIS_PRECISION);
+            _removeLpRebalance(_lpOut, 0);
         }
 
-    }
-
-    function calcSwapAmount(uint256 _debtRatio0, uint256 _debtRatio1, uint256 _balance0, uint256 _balance1) internal view returns(uint256) { 
-
-        uint256 debt0 = _balance0.mul(BASIS_PRECISION).div(_debtRatio0);
-        uint256 debt1 = _balance1.mul(BASIS_PRECISION).div(_debtRatio1);
-
-        if (_debtRatio0 >= _debtRatio1){
-            uint256 debtRatioDiff = _debtRatio0.sub(_debtRatio1);
-            uint256 weightAdj = BASIS_PRECISION.mul(tokenWeights[tokens[0]]).div(tokenWeights[tokens[1]]]);
-            return(debtRatioDiff.mul(debt0).div(BASIS_PRECISION.add(weightAdj)));
-        }
-
-        if (_debtRatio1 > _debtRatio0) {
-            uint256 debtRatioDiff = _debtRatio1.sub(_debtRatio0);
-            uint256 weightAdj = BASIS_PRECISION.mul(tokenWeights[tokens[1]]).div(tokenWeights[tokens[0]]]);
-            return(debtRatioDiff.mul(debt1).div(BASIS_PRECISION.add(weightAdj)));
-        }
     }
 
     /// @notice after a rebalance, tokens in excess of LP are returned to the provider strategies 
@@ -571,16 +549,15 @@ contract jointLPHolderBalancer is Ownable {
     function _withdrawLp(uint256 _debtProportion) internal {
         uint256 lpOut = lpBalance().mul(_debtProportion).div(BASIS_PRECISION);
         _withdrawFromFarm(lpOut);
-        _removeAllLp(_debtProportion);
+        _removeAllLp(_debtProportion, lpOut);
     }
 
-    function _removeAllLp(uint256 _debtProportion) internal {
-        uint256 _lpOut = lpBalance().mul(_debtProportion).div(BASIS_PRECISION);
+    function _removeAllLp(uint256 _debtProportion, uint256 _lpOut) internal {
         uint256[] memory amountsOut = new uint256[](numTokens);
         uint256[] memory minAmountsOut = new uint256[](numTokens);
 
         for (uint256 i = 0; i < numTokens; i++){
-            amountsOut[i] = debtOutstanding(address(tokens[i])).mul(_debtProportion).div(BASIS_PRECISION);
+            amountsOut[i] = debtOutstanding(address(tokens[i])).mul(_debtProportion).div(BASIS_PRECISION).mul(slippageAdj).div(BASIS_PRECISION);
             minAmountsOut[i] = amountsOut[i].mul(minOut).div(BASIS_PRECISION);
         }
 
@@ -588,6 +565,27 @@ contract jointLPHolderBalancer is Ownable {
         IBalancerVault.ExitPoolRequest memory request = IBalancerVault.ExitPoolRequest(assets, minAmountsOut, userData, false);
         balancerVault.exitPool(balancerPoolId, address(this), address(this), request);
     }
+
+
+    function _removeLpRebalance(uint256 _lpOut, uint256 _tokenIndex) internal {
+        uint256[] memory amountsOut = new uint256[](numTokens);
+        uint256[] memory minAmountsOut = new uint256[](numTokens);
+
+        for (uint256 i = 0; i < numTokens; i++){
+            if (i == _tokenIndex){
+                uint256 wantInLp = getLpReserves(i);
+                uint256 lpSupply = lp.totalSupply();
+                amountsOut[i] = wantInLp.mul(_lpOut).div(lpSupply).mul(TOKEN_WEIGHT_PRECISION).div(tokenWeights[tokens[i]]);
+                minAmountsOut[i] = amountsOut[i].mul(minOut).div(BASIS_PRECISION);
+            }
+        }
+
+        bytes memory userData = abi.encode(IBalancerVault.ExitKind.BPT_IN_FOR_EXACT_TOKENS_OUT, amountsOut, _lpOut);
+        IBalancerVault.ExitPoolRequest memory request = IBalancerVault.ExitPoolRequest(assets, minAmountsOut, userData, false);
+        balancerVault.exitPool(balancerPoolId, address(this), address(this), request);
+    }
+
+
 
     function harvestRewards() external onlyKeepers {
         _harvestInternal();

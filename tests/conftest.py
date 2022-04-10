@@ -6,6 +6,8 @@ from brownie import interface, project
 SPIRIT_ROUTER = '0x16327E3FbDaCA3bcF7E38F5Af2599D2DDc33aE52'
 SPOOKY_ROUTER = '0xF491e7B69E4244ad4002BC14e878a34207E38c29'
 
+BEETS_MASTERCHEF = '0x8166994d9ebBe5829EC86Bd81258149B87faCfd3'
+BEETS = '0xF24Bcf4d1e507740041C9cFd2DddB29585aDCe1e'
 SPOOKY_MASTERCHEF = '0x2b2929E785374c651a81A63878Ab22742656DcDd'
 BOO = '0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE'
 
@@ -88,6 +90,9 @@ GEIST = '0xd8321AA83Fb0a4ECd6348D4577431310A6E0814d'
 oxd = '0xc5A9848b9d145965d821AaeC8fA32aaEE026492d'
 solid = '0x888EF71766ca594DED1F0FA3AE64eD2941740A20'
 
+BALANCERVAULT = '0x20dd72Ed959b6147912C2e529F0a0C651c33c9ce'
+
+
 CONFIG = {
 
     'USDCFTMSpookyBOO': {
@@ -140,6 +145,19 @@ CONFIG = {
         'compToken': SCREAM,
         'router': SPOOKY_ROUTER,
         'lpType' : 'solid'      
+    },
+
+    'WFTMUSDCBeets': {
+        'LP': '0xcdF68a4d525Ba2E90Fe959c74330430A5a6b8226',
+        'tokens' : [WFTM, USDC],
+        'farm' : BEETS_MASTERCHEF,
+        'farmPID' : 8,
+        'comptroller' : screamComptroller,
+        'harvest_tokens': [BEETS],
+        'harvestWhales' : [BEETS_MASTERCHEF],
+        'compToken': SCREAM,
+        'router': SPOOKY_ROUTER,
+        'lpType' : 'beethoven'
     }
 
 }
@@ -147,7 +165,7 @@ CONFIG = {
 
 @pytest.fixture
 def conf():
-    yield CONFIG['WETHFTMSpookyLQDR']
+    yield CONFIG['WFTMUSDCBeets']
 
 @pytest.fixture
 def gov(accounts):
@@ -245,19 +263,14 @@ def scTokens(conf, tokens):
     yield scTokens
 
 @pytest.fixture
-def jointLP(pm, gov, conf, keeper ,rewards, guardian, management, jointLPHolderUniV2, jointLPHolderSolidly) : 
+def jointLP(pm, gov, conf, keeper ,rewards, guardian, management, jointLPHolderBalancer) : 
     lp = conf['LP']
     farmToken = conf['harvest_tokens'][0]
     nTokens = 2
-    if conf['lpType'] == 'uniV2':
-        jointLP = jointLPHolderUniV2.deploy(lp, conf['farm'] , conf['farmPID'], conf['router'], farmToken, {'from' : gov})
-    else :
-        jointLP = jointLPHolderSolidly.deploy(lp, conf['router'], {'from' : gov})
+    jointLP = jointLPHolderBalancer.deploy(lp, conf['farm'] , conf['farmPID'], farmToken, conf['router'], 9500 ,{'from' : gov})
 
     jointLP.setKeeper(keeper)
     yield jointLP
-
-
 
 @pytest.fixture
 def vaults(pm, gov, rewards, guardian, management, tokens):
