@@ -35,6 +35,8 @@ interface IJointVault {
     function calculateProfit(address _token) external view returns(uint256 _loss, uint256 _profit);
     function withdraw(uint256 _debtProportion) external;
     function allStratsInProfit() external view returns(bool);
+    function harvestFromProvider() external;
+    function canHarvestJoint() external view returns(bool);
 }
 
 contract Strategy is BaseStrategy {
@@ -66,10 +68,14 @@ contract Strategy is BaseStrategy {
     // amount of Debt to Joint Strategy 
     uint256 public debtJoint; 
     // this % of want must be available before adding to Joint 
-    uint256 public debtJointThreshold = 500; 
+    uint256 public debtJointMin = 500; 
+    // max amount of want that can be provided to Joint 
+    uint256 public debtJointMax = 9500;    
     // this % of want must be in lend before calling redeemWant (avoids issue with tiny amounts blocking withdrawals)
     uint256 public lendDustPercent = 10; 
     bool internal forceHarvestTriggerOnce;
+    bool internal sellJointRewardsAtHarvest = true; 
+    bool internal sellCompAtHarvest = false; 
 
     constructor(
         address _vault,
@@ -143,7 +149,15 @@ contract Strategy is BaseStrategy {
 
     // how much want is available to move to join LP provider 
     function wantAvailable() public view returns(uint256) {
-        return(balanceOfWant().add(balanceLend()));
+        uint256 wantFree = balanceOfWant().add(balanceLend());
+        uint256 assets = estimatedTotalAssets();
+        uint256 jointMin = debtJointMin.mul(assets).div(BASIS_PRECISION);
+        // we check that free want is enough to cover existing jointMin held in strat & bigger than jointMin required to add to Joint  
+        if (wantFree > jointMin.mul(2)){ 
+            return(wantFree.sub(jointMin));
+        } else {
+            return(0);
+        }
     }
 
     function getOraclePrice() public view returns(uint256) {
@@ -160,6 +174,8 @@ contract Strategy is BaseStrategy {
             uint256 _debtPayment
         )
     {
+        _harvestRewards();
+        
         uint256 totalAssets = estimatedTotalAssets();
         uint256 totalDebt = _getTotalDebt();
         
@@ -178,11 +194,20 @@ contract Strategy is BaseStrategy {
         } else {
             _withdraw(_debtOutstanding);
             _loss = totalDebt.sub(totalAssets);
-            _debtPayment = Math.min(balanceOfWant(), _debtOutstanding);
+            _debtPayment = balanceOfWant();
         }
 
         debtJoint = balanceJoint();
 
+    }
+
+    function _harvestRewards() internal {
+        if (sellCompAtHarvest){
+            _harvestComp();
+        }
+        if (sellJointRewardsAtHarvest && jointVault.canHarvestJoint()){
+            jointVault.harvestFromProvider();
+        }
     }
 
     function _withdraw(uint256 _amountNeeded)
@@ -235,8 +260,9 @@ contract Strategy is BaseStrategy {
         lendDustPercent = _lendDustPercent;
     }
 
-    function setJointDebtThreshold(uint256 _debtJointThreshold) external onlyAuthorized {
-        debtJointThreshold = _debtJointThreshold;
+    function setdebtJointThresholds(uint256 _debtJointMin, uint256 _debtJointMax) external onlyAuthorized {
+        debtJointMin = _debtJointMin;
+        debtJointMax = _debtJointMax;
     }
 
     function isInProfit() public view returns(bool) {
@@ -273,7 +299,7 @@ contract Strategy is BaseStrategy {
 
         uint256 stratPercentFree = wantAvailable().mul(BASIS_PRECISION).div(estimatedTotalAssets());
 
-        if (stratPercentFree > debtJointThreshold){
+        if (stratPercentFree > debtJointMin){
             jointVault.addToJoint();
         }
 
@@ -389,13 +415,13 @@ contract Strategy is BaseStrategy {
         }
     }
 
-    function harvestComp() external onlyKeepers {
+    function _harvestComp() internal {
         comptroller.claimComp(address(this));
         _sellCompWant();
     }
 
 
-    function _sellCompWant() internal virtual {
+    function _sellCompWant() internal {
         uint256 compBalance = compToken.balanceOf(address(this));
         if (compBalance == 0) return;
         router.swapExactTokensForTokens(

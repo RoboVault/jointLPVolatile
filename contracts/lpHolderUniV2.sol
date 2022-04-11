@@ -90,6 +90,10 @@ contract jointLPHolderUniV2 is Ownable {
     uint256 bpsRebalanceDiff = 50;
     // @we rebalance if debt ratio for either assets goes above this ratio 
     uint256 debtUpper = 10250;
+    uint256 public lastRewardSale; 
+    // time between sales of reward token -> to avoid both providers calling within same time 
+    uint256 public minRewardSaleTime = 3600;
+
     // @max difference between LP & oracle prices to complete rebalance / withdraw 
     uint256 public priceSourceDiff = 500; // 5% Default
     bool public initialisedStrategies = false; 
@@ -119,6 +123,7 @@ contract jointLPHolderUniV2 is Ownable {
         address _rewardToken
 
     ) public {
+        lastRewardSale = block.timestamp;
         lp = IUniswapV2Pair(_lp);
         IERC20(address(lp)).safeApprove(_router, uint256(-1));
 
@@ -603,6 +608,16 @@ contract jointLPHolderUniV2 is Ownable {
     }
 
     function harvestRewards() external onlyKeepers {
+        _harvestInternal();
+        lastRewardSale = block.timestamp;
+    }
+
+    function canHarvestJoint() public view returns(bool) {
+        uint256 timeSinceSale = block.timestamp.sub(lastRewardSale);
+        return(timeSinceSale >= minRewardSaleTime && lpBalance() > 0);
+    }
+
+    function harvestFromProvider() external onlyStrategies {
         _harvestInternal();
     }
 

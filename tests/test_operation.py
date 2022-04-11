@@ -159,8 +159,10 @@ def test_profitable_harvest(
     assert strategy.debtJoint() > 0
 
 
-    n_harvests = 5
+    n_harvests = 3
     for t in range(n_harvests) :
+
+        chain.sleep(4000)
 
         #here we send some rewards 
         for i in range(len(conf['harvest_tokens'])) : 
@@ -171,7 +173,7 @@ def test_profitable_harvest(
 
         chain.sleep(1)
         chain.mine(1)
-        jointLP.harvestRewards({'from' : gov})
+        #jointLP.harvestRewards({'from' : gov})
         for i in range(len(tokens)) :
             strategy = strategies[i]
             strategy.harvest()
