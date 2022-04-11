@@ -231,7 +231,7 @@ def test_reduce_debt_offsetA(
         chain.mine(5)
         #chain.mine(1)
 
-        strategy.harvest()
+        tx = strategy.harvest()
         assert strategy.estimatedTotalAssets() < 10 ** (token.decimals() - 3) # near zero
 
 
@@ -462,7 +462,7 @@ def test_price_offset_checks_B(
         assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     tokenIndex = 1
-    swapPct = 0.1
+    swapPct = 0.05
     offSetDebtRatio(jointLP, priceOffsetter, tokens ,tokenIndex, swapPct, user)
     chain.sleep(5)
     chain.mine(5)

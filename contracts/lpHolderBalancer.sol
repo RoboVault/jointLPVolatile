@@ -82,7 +82,12 @@ contract jointLPHolderBalancer is Ownable {
     // helps avoid sandwhich attacks
     bool public doPriceCheck = true;
     uint256 internal numTokens = 2;
-    uint256 public slippageAdj = 9900; // 99.9%
+    // when withdrawing lbt apply some slippage 
+    uint256 public slippageAdj = 9990; // 99.9%
+    // slippage on rebalances 
+    uint256 public slippageAdjRebalance = 9900; // 99.9%
+    // minimum % of LP to be withdrawn
+    uint256 public minLpWithdraw = 100; // 1% 
     uint256 constant BASIS_PRECISION = 10000;
     uint256 constant TOKEN_WEIGHT_PRECISION = 1000000000000000000;
     uint256 public rebalancePercent = 10000;
@@ -224,8 +229,10 @@ contract jointLPHolderBalancer is Ownable {
     }
 
     /// @notice set other paramaters used by jointLP 
-    function setParamaters(uint256 _slippageAdj, uint256 _bpsRebalanceDiff, uint256 _rebalancePercent, uint256 _debtUpper) external onlyAuthorized {
+    function setParamaters(uint256 _slippageAdj, uint256 _slippageAdjRebalance, uint256 _minLpWithdraw ,uint256 _bpsRebalanceDiff, uint256 _rebalancePercent, uint256 _debtUpper) external onlyAuthorized {
+        minLpWithdraw = _minLpWithdraw;
         slippageAdj = _slippageAdj;
+        slippageAdjRebalance = _slippageAdjRebalance;
         bpsRebalanceDiff = _bpsRebalanceDiff;
         rebalancePercent = _rebalancePercent;
         debtUpper = _debtUpper;
@@ -425,23 +432,28 @@ contract jointLPHolderBalancer is Ownable {
     // here we calculate if we rebalance what will the balances of each token be 
     function balanceTokenWithRebalance(uint256 _tokenIndex) public view returns(uint256) {
 
-        uint256 tokenBalance0 = balanceToken(0);
-        uint256 tokenBalance1 = balanceToken(1);
+        uint256 lpRemovePercent;
         uint256 debtRatio0 = calcDebtRatioToken(0);
         uint256 debtRatio1 = calcDebtRatioToken(1);
 
-        uint256 swapPct;
+        uint256 tokenWeight0 = tokenWeights[tokens[0]];
+        uint256 tokenWeight1 = tokenWeights[tokens[1]];
+
+        uint256 tokenBalance0 = balanceToken(0);
+        uint256 tokenBalance1 = balanceToken(1);
 
         if (debtRatio0 > debtRatio1) {
-            swapPct = (debtRatio0.sub(debtRatio1)).div(2);
-            uint256 swapAmount = tokenBalance1.mul(swapPct).div(BASIS_PRECISION); 
+            uint256 weightAdj = BASIS_PRECISION.mul(tokenWeight1).div(tokenWeight0);
+            lpRemovePercent = (debtRatio0.sub(debtRatio1)).mul(BASIS_PRECISION).div(BASIS_PRECISION.add(weightAdj));
+            uint256 swapAmount = tokenBalance1.mul(lpRemovePercent).div(BASIS_PRECISION); 
             uint256 amountIn = convertAtoB(address(tokens[1]), address(tokens[0]), swapAmount);
             tokenBalance0 = tokenBalance0.add(amountIn);
             tokenBalance1 = tokenBalance1.sub(swapAmount);
 
         } else {
-            swapPct = (debtRatio1.sub(debtRatio0)).div(2);
-            uint256 swapAmount = tokenBalance0.mul(swapPct).div(BASIS_PRECISION); 
+            uint256 weightAdj = BASIS_PRECISION.mul(tokenWeight0).div(tokenWeight1);
+            lpRemovePercent = (debtRatio1.sub(debtRatio0)).mul(BASIS_PRECISION).div(BASIS_PRECISION.add(weightAdj));
+            uint256 swapAmount = tokenBalance0.mul(lpRemovePercent).div(BASIS_PRECISION); 
             uint256 amountIn = convertAtoB(address(tokens[0]), address(tokens[1]), swapAmount);
             tokenBalance0 = tokenBalance0.sub(swapAmount);
             tokenBalance1 = tokenBalance1.add(amountIn);
@@ -537,6 +549,7 @@ contract jointLPHolderBalancer is Ownable {
     // then we rebalance based on the portion being withdrawn this means each provider strat takes roughly the same P&L 
     // we then withdraw the required LP and return the required tokens to each provider strat & adjust the jointDebt paramater
     function withdraw(uint256 _debtProportion) external onlyStrategies {
+        _debtProportion = Math.max(_debtProportion, minLpWithdraw);
         require(_testPriceSource());
         _rebalanceDebtInternal(_debtProportion);
         _withdrawLp(_debtProportion);
@@ -579,7 +592,7 @@ contract jointLPHolderBalancer is Ownable {
                 uint256 lpSupply = lp.totalSupply();
                 // SHOULD BE MULTIPLIED TO ADJ FOR TOKEN WEIGHTS
                 uint256 amountOutRaw = wantInLp.mul(_lpOut).div(lpSupply).mul(TOKEN_WEIGHT_PRECISION).div(tokenWeights[tokens[i]]);
-                amountsOut[i] = amountOutRaw.mul(slippageAdj).div(BASIS_PRECISION);
+                amountsOut[i] = amountOutRaw.mul(slippageAdjRebalance).div(BASIS_PRECISION);
                 minAmountsOut[i] = amountsOut[i].mul(minOut).div(BASIS_PRECISION);
             }
         }
@@ -618,11 +631,11 @@ contract jointLPHolderBalancer is Ownable {
         uint256 expectedAmountOut = convertAtoB(_swapFrom, _swapTo, _amountIn);
         // do this to avoid small swaps that will fail
         if (fromBalance < 1 || expectedAmountOut < 1) return (0);
-        uint256 minOut = 0;
+        uint256 minSwapOut = 0;
         uint256[] memory amounts =
             router.swapExactTokensForTokens(
                 _amountIn,
-                minOut,
+                minSwapOut,
                 getTokenOutPath(address(_swapFrom), address(_swapTo)),
                 address(this),
                 now
@@ -653,7 +666,7 @@ contract jointLPHolderBalancer is Ownable {
     }
 
     function getDebtProportion(address _token) public view returns(uint256) {
-        return((BASIS_PRECISION).div(2));
+        return(tokenWeights[IERC20(_token)].mul(BASIS_PRECISION).div(TOKEN_WEIGHT_PRECISION));
     }
 
     function getTokenOutPath(address _token_in, address _token_out)
