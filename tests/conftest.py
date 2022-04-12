@@ -147,7 +147,7 @@ CONFIG = {
 
 @pytest.fixture
 def conf():
-    yield CONFIG['WETHFTMSpookyLQDR']
+    yield CONFIG['USDCFTMSpookyLQDR']
 
 @pytest.fixture
 def gov(accounts):
@@ -197,7 +197,7 @@ def amounts(accounts, tokens, user, whales):
         token = tokens[i]
         amount = 10_000 * 10 ** token.decimals()
         # we need some tokens left over to do price offsets 
-        amount = int(min(amount, 0.6*token.balanceOf(reserve)))
+        amount = int(min(amount, 0.1*token.balanceOf(reserve)))
         token.transfer(user, amount, {"from": reserve})
         i += 1
         amounts = amounts + [amount]

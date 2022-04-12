@@ -4,6 +4,18 @@ import pytest
 import time 
 
 
+def calculateLosses(tokens, strategies,amounts):
+    losses = []
+    for i in range(len(tokens)) : 
+        loss = strategies[i].estimatedTotalAssets() / amounts[i]
+        losses.append(loss)
+        print("Loss  " + str(i) + " - ")
+        print(loss)
+
+    return losses
+
+
+
 def offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct):
     # use other AMM's LP to force some swaps 
     solidRouter = '0xa38cd27185a464914D3046f0AB9d43356B34829D'
@@ -73,8 +85,13 @@ def test_rebalanceDebtA(
     # set price source to off
     jointLP.setPriceSource(False, 500, {'from' : gov})
 
+    lossesPreRebalance = calculateLosses(tokens, strategies, amounts)
+
     print('rebalance debt')
     jointLP.rebalanceDebt()
+
+    lossesPostRebalance = calculateLosses(tokens, strategies, amounts)
+
 
     debtRatio0 = jointLP.calcDebtRatioToken(0)
     debtRatio1 = jointLP.calcDebtRatioToken(1)
@@ -125,8 +142,12 @@ def test_rebalanceDebtB(
     # set price source to off
     jointLP.setPriceSource(False, 500, {'from' : gov})
 
+    lossesPreRebalance = calculateLosses(tokens, strategies, amounts)
+
     print('rebalance debt')
     jointLP.rebalanceDebt()
+
+    lossesPostRebalance = calculateLosses(tokens, strategies, amounts)
 
     debtRatio0 = jointLP.calcDebtRatioToken(0)
     debtRatio1 = jointLP.calcDebtRatioToken(1)
@@ -391,6 +412,8 @@ def test_price_offset_checks_A(
     with brownie.reverts():
         jointLP.rebalanceDebt()
 
+    lossesPreRebalance = calculateLosses(tokens, strategies, amounts)
+
     # we sleep for maxReport delay time so we can check harvest trigger is returning false 
     chain.sleep(86401)
     chain.mine(1)
@@ -416,12 +439,14 @@ def test_price_offset_checks_A(
 
     jointLP.rebalanceDebt()
 
+    lossesPostRebalance = calculateLosses(tokens, strategies, amounts)
+
+
     debtRatio0 = jointLP.calcDebtRatioToken(0)
     debtRatio1 = jointLP.calcDebtRatioToken(1)
 
     print('Debt Ratio A :  {0}'.format(debtRatio0))
     print('Debt Ratio B :  {0}'.format(debtRatio1))
-
 
     for i in range(len(tokens)) : 
         token = tokens[i]
@@ -434,6 +459,7 @@ def test_price_offset_checks_A(
         chain.sleep(5)
         chain.mine(5)
         vault.withdraw(withdrawAmt, user, 1000, {'from' : user})  
+
 
 
 def test_price_offset_checks_B(
@@ -463,7 +489,7 @@ def test_price_offset_checks_B(
         assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     tokenIndex = 1
-    swapPct = 0.1
+    swapPct = 0.15
     offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
     chain.sleep(5)
     chain.mine(5)
@@ -483,6 +509,8 @@ def test_price_offset_checks_B(
     # we sleep for maxReport delay time so we can check harvest trigger is returning false 
     chain.sleep(86401)
     chain.mine(1)
+
+
 
     for i in range(len(tokens)) : 
         token = tokens[i]
@@ -525,6 +553,7 @@ def test_price_offset_checks_B(
         vault.withdraw(withdrawAmt, user, 1000, {'from' : user})  
 
 
+
 def test_migration_offsetA(
     chain,
     tokens,
@@ -533,6 +562,7 @@ def test_migration_offsetA(
     amounts,
     strategy_contract,
     jointLP_contract,
+    jointLP,
     scTokens,
     conf,
     strategist,
@@ -573,6 +603,7 @@ def test_migration_offsetA(
     swapPct = 0.02
 
     offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
+    jointLP.setPriceSource(False, 500, {'from' : gov})
 
     chain.sleep(1)
     chain.mine(1)
@@ -593,6 +624,7 @@ def test_migration_offsetB(
     amounts,
     strategy_contract,
     jointLP_contract,
+    jointLP,
     scTokens,
     conf,
     strategist,
@@ -633,6 +665,7 @@ def test_migration_offsetB(
     swapPct = 0.02
 
     offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
+    jointLP.setPriceSource(False, 500, {'from' : gov})
 
     chain.sleep(1)
     chain.mine(1)

@@ -95,7 +95,7 @@ contract jointLPHolderUniV2 is Ownable {
     uint256 public minRewardSaleTime = 3600;
 
     // @max difference between LP & oracle prices to complete rebalance / withdraw 
-    uint256 public priceSourceDiff = 500; // 5% Default
+    uint256 public priceSourceDiff = 250; // 2.5% Default
     bool public initialisedStrategies = false; 
 
     address keeper; 
@@ -325,8 +325,6 @@ contract jointLPHolderUniV2 is Ownable {
 
             return (priceSourceRatio > BASIS_PRECISION.sub(priceSourceDiff) &&
                 priceSourceRatio < BASIS_PRECISION.add(priceSourceDiff));
-
-
         }
         return true;
     }
@@ -367,7 +365,7 @@ contract jointLPHolderUniV2 is Ownable {
         address strategy1 = strategies[tokens[1]];
 
         tokens[0].transfer(strategy0, bal0);
-        tokens[1].transfer(strategy0, bal1);
+        tokens[1].transfer(strategy1, bal1);
 
         IStrat(strategy0).adjustJointDebtOnWithdraw(bal0.mul(BASIS_PRECISION).div(debtOutstanding(address(tokens[0]))));
         IStrat(strategy1).adjustJointDebtOnWithdraw(bal1.mul(BASIS_PRECISION).div(debtOutstanding(address(tokens[1]))));
