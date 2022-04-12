@@ -3,6 +3,16 @@ from brownie import interface, Contract, accounts
 import pytest
 import time 
 
+def calculateLosses(tokens, strategies,amounts):
+    losses = []
+    for i in range(len(tokens)) : 
+        loss = strategies[i].estimatedTotalAssets() / amounts[i]
+        losses.append(loss)
+        print("Loss  " + str(i) + " - ")
+        print(loss)
+
+    return losses
+
 
 def getWhaleAddress(Contract, tokens) : 
     spookyRouter = '0xF491e7B69E4244ad4002BC14e878a34207E38c29'
@@ -73,9 +83,12 @@ def test_rebalanceDebtA(
     # set price source to off
     jointLP.setPriceSource(False, 500, {'from' : gov})
 
+    lossesPreRebalance = calculateLosses(tokens, strategies, amounts)
+
     print('rebalance debt')
     jointLP.rebalanceDebt()
 
+    lossesPostRebalance = calculateLosses(tokens, strategies, amounts)
     debtRatio0 = jointLP.calcDebtRatioToken(0)
     debtRatio1 = jointLP.calcDebtRatioToken(1)
 
@@ -120,9 +133,12 @@ def test_rebalanceDebtB(
     # set price source to off
     jointLP.setPriceSource(False, 500, {'from' : gov})
 
+    lossesPreRebalance = calculateLosses(tokens, strategies, amounts)
+
     print('rebalance debt')
     jointLP.rebalanceDebt()
 
+    lossesPostRebalance = calculateLosses(tokens, strategies, amounts)
     debtRatio0 = jointLP.calcDebtRatioToken(0)
     debtRatio1 = jointLP.calcDebtRatioToken(1)
 
@@ -203,12 +219,13 @@ def test_reduce_debt_offsetA(
         vault = vaults[i]
         strategy = strategies[i]
         amount = amounts[i]
+        chain.sleep(5)
+        chain.mine(5)
         strategy.harvest()
         strat = strategy
         assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
-    chain.sleep(5)
-    chain.mine(5)
+
     #assert False
     assert strategy.debtJoint() > 0
 
@@ -413,8 +430,11 @@ def test_price_offset_checks_A(
     
     print("Turn Off Price Check & Rebalance")
 
+    lossesPreRebalance = calculateLosses(tokens, strategies, amounts)
+    print('rebalance debt')
     jointLP.rebalanceDebt()
 
+    lossesPostRebalance = calculateLosses(tokens, strategies, amounts)
     debtRatio0 = jointLP.calcDebtRatioToken(0)
     debtRatio1 = jointLP.calcDebtRatioToken(1)
 
@@ -502,8 +522,11 @@ def test_price_offset_checks_B(
     
     print("Turn Off Price Check & Rebalance")
     
+    lossesPreRebalance = calculateLosses(tokens, strategies, amounts)
+    print('rebalance debt')
     jointLP.rebalanceDebt()
 
+    lossesPostRebalance = calculateLosses(tokens, strategies, amounts)
     debtRatio0 = jointLP.calcDebtRatioToken(0)
     debtRatio1 = jointLP.calcDebtRatioToken(1)
 
@@ -557,7 +580,8 @@ def test_migration_offsetA(
         assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     farmToken = conf['harvest_tokens'][0]
-    newJointLP = jointLP_contract.deploy(conf['LP'], conf['farm'] , conf['farmPID'], conf['router'], farmToken, {'from' : gov})
+
+    newJointLP = jointLP_contract.deploy(conf['LP'], conf['farm'] , conf['farmPID'], farmToken, conf['router'], 9500, {'from' : gov})
 
     newStrategies = []
 
@@ -574,6 +598,7 @@ def test_migration_offsetA(
     swapPct = 0.02
 
     offSetDebtRatio(jointLP, priceOffsetter, tokens ,tokenIndex, swapPct, user)
+    jointLP.setPriceSource(False, 500, {'from' : gov})
 
     chain.sleep(1)
     chain.mine(1)
@@ -619,7 +644,7 @@ def test_migration_offsetB(
         assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     farmToken = conf['harvest_tokens'][0]
-    newJointLP = jointLP_contract.deploy(conf['LP'], conf['farm'] , conf['farmPID'], conf['router'], farmToken, {'from' : gov})
+    newJointLP = jointLP_contract.deploy(conf['LP'], conf['farm'] , conf['farmPID'], farmToken, conf['router'], 9500 ,{'from' : gov})
 
     newStrategies = []
 
@@ -636,6 +661,7 @@ def test_migration_offsetB(
     swapPct = 0.02
 
     offSetDebtRatio(jointLP, priceOffsetter, tokens ,tokenIndex, swapPct, user)
+    jointLP.setPriceSource(False, 500, {'from' : gov})
 
     chain.sleep(1)
     chain.mine(1)

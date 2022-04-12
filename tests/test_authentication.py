@@ -4,15 +4,16 @@ import pytest
 import time 
 import eth_abi
 
+#function setParamaters(uint256 _slippageAdj, uint256 _slippageAdjRebalance, uint256 _minLpWithdraw ,uint256 _bpsRebalanceDiff, uint256 _rebalancePercent, uint256 _debtUpper) external onlyAuthorized {
 
 def test_set_paramaters(
     chain, accounts, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf
 
 ) : 
     with brownie.reverts() : 
-        jointLP.setParamaters(9900, 50, 9950, 10250, {'from' : user})
+        jointLP.setParamaters(9950, 9900 , 100, 50 ,9950, 10250, {'from' : user})
 
-    jointLP.setParamaters(9900, 50, 9950, 10250, {'from' : gov})
+    jointLP.setParamaters(9950, 9900 , 100, 50 ,9950, 10250, {'from' : gov})
 
     with brownie.reverts() : 
         jointLP.setPriceSource(False, 500, {'from' : user})

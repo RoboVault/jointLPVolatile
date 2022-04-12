@@ -32,7 +32,7 @@ def test_migration(
         assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     farmToken = conf['harvest_tokens'][0]
-    newJointLP = jointLP_contract.deploy(conf['LP'], conf['farm'] , conf['farmPID'], conf['router'], farmToken, {'from' : gov})
+    newJointLP = jointLP_contract.deploy(conf['LP'], conf['farm'] , conf['farmPID'], farmToken, conf['router'], 9500 ,{'from' : gov})
 
     newStrategies = []
 

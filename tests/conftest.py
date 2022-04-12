@@ -95,58 +95,6 @@ BALANCERVAULT = '0x20dd72Ed959b6147912C2e529F0a0C651c33c9ce'
 
 CONFIG = {
 
-    'USDCFTMSpookyBOO': {
-        'LP': '0x2b4C76d0dc16BE1C31D4C1DC53bF9B45987Fc75c',
-        'tokens' : [USDC, WFTM],
-        'farm' : SPOOKY_MASTERCHEF,
-        'farmPID' : 2,
-        'comptroller' : screamComptroller,
-        'harvest_tokens': [BOO],
-        'harvestWhale' : 0xa48d959AE2E88f1dAA7D5F611E01908106dE7598,
-        'compToken': SCREAM,
-        'router': SPOOKY_ROUTER,
-        'lpType' : 'uniV2'
-    },
-
-    'USDCFTMSpookyLQDR': {
-        'LP': '0x2b4C76d0dc16BE1C31D4C1DC53bF9B45987Fc75c',
-        'tokens' : [USDC, WFTM],
-        'farm' : lqdrMasterChef,
-        'farmPID' : 11,
-        'comptroller' : screamComptroller,
-        'harvest_tokens': [lqdr],
-        'harvestWhales' : [lqdrMasterChef],
-        'compToken': SCREAM,
-        'router': SPOOKY_ROUTER,
-        'lpType' : 'uniV2'
-    },
-
-    'WETHFTMSpookyLQDR': {
-        'LP': '0xf0702249F4D3A25cD3DED7859a165693685Ab577',
-        'tokens' : [WETH, WFTM],
-        'farm' : lqdrMasterChef,
-        'farmPID' : 15,
-        'comptroller' : screamComptroller,
-        'harvest_tokens': [lqdr],
-        'harvestWhales' : [lqdrMasterChef],
-        'compToken': SCREAM,
-        'router': SPOOKY_ROUTER,
-        'lpType' : 'uniV2'
-    },
-
-    'FRAXFTMSOLID' : {
-        'LP': '0x9ae95682bde174993ecb818Cc23E8607d2e54667',
-        'tokens' : [FRAX, WFTM],
-        'farm' : SPOOKY_MASTERCHEF,
-        'farmPID' : 2,
-        'comptroller' : screamComptroller,
-        'harvest_tokens': [oxd, solid],
-        'harvestWhales' : ['0xDA00527EDAabCe6F97D89aDb10395f719E5559b9', '0xcBd8fEa77c2452255f59743f55A3Ea9d83b3c72b'],
-        'compToken': SCREAM,
-        'router': SPOOKY_ROUTER,
-        'lpType' : 'solid'      
-    },
-
     'WFTMUSDCBeets': {
         'LP': '0xcdF68a4d525Ba2E90Fe959c74330430A5a6b8226',
         'tokens' : [WFTM, USDC],
@@ -321,7 +269,7 @@ def strategy_contract():
 @pytest.fixture
 def jointLP_contract():
     # yield  project.CoreStrategyProject.USDCWFTMScreamLqdrSpooky
-    yield  project.JointlpvolatileProject.jointLPHolderUniV2
+    yield  project.JointlpvolatileProject.jointLPHolderBalancer
 
 
 @pytest.fixture

@@ -25,7 +25,7 @@ interface IMasterChefv2 {
 
     function emergencyWithdraw(uint256 _pid) external;
 
-    function withdraw(
+    function withdrawAndHarvest(
         uint256 pid,
         uint256 amount,
         address to
@@ -37,9 +37,7 @@ interface IMasterChefv2 {
         address to
     ) external;
 
-    function lqdrPerBlock() external view returns (uint256);
-
-    function lpToken(uint256 pid) external view returns (address);
+    function lpTokens(uint256 pid) external view returns (address);
 
     function userInfo(uint256 _pid, address _user)
         external
@@ -90,17 +88,23 @@ contract jointLPHolderBalancer is Ownable {
     uint256 public minLpWithdraw = 100; // 1% 
     uint256 constant BASIS_PRECISION = 10000;
     uint256 constant TOKEN_WEIGHT_PRECISION = 1000000000000000000;
+    uint256 constant STD_PRECISION = 1e12;
     uint256 public rebalancePercent = 10000;
     /// @notice to make sure we don't try to do tiny rebalances with insufficient swap amount when withdrawing have some buffer 
     uint256 bpsRebalanceDiff = 50;
     // @we rebalance if debt ratio for either assets goes above this ratio 
     uint256 debtUpper = 10200;
+    uint256 public lastRewardSale; 
+    // time between sales of reward token -> to avoid both providers calling within same time 
+    uint256 public minRewardSaleTime = 3600;
     // @max difference between LP & oracle prices to complete rebalance / withdraw 
     uint256 public priceSourceDiff = 500; // 5% Default
-    bool public initialisedStrategies = false; 
+    // this relative to STD_PRECISION so 1e14 is 1 / 1e4 
+    uint256 lpDust = 1e4; 
 
-    address keeper; 
-    address strategist;
+    bool public initialisedStrategies = false; 
+    address public keeper; 
+    address public strategist;
 
     bytes32 public balancerPoolId;
     IBalancerVault internal balancerVault = IBalancerVault(0x20dd72Ed959b6147912C2e529F0a0C651c33c9ce);
@@ -130,8 +134,8 @@ contract jointLPHolderBalancer is Ownable {
         uint256 _minOut
 
     ) public {
+        lastRewardSale = block.timestamp;
         lp = IBalancerPool(_lp);
-
         balancerPoolId = lp.getPoolId();
         lp.approve(address(balancerVault), uint256(-1));
         (IERC20[] memory poolTokens,,) = balancerVault.getPoolTokens(balancerPoolId);
@@ -166,6 +170,9 @@ contract jointLPHolderBalancer is Ownable {
         keeper = _keeper;
     }
 
+    function setLpDust(uint256 _lpDust) external onlyAuthorized {
+        lpDust = _lpDust;
+    }
 
     function initaliseStrategies(address[] memory _strategies) external onlyAuthorized {
         require(initialisedStrategies == false);
@@ -278,21 +285,32 @@ contract jointLPHolderBalancer is Ownable {
         for (uint256 i = 0; i < numTokens; i++){
             amountInLp = getLpReserves(i);
             wantAmount = IStrat(strategies[tokens[i]]).wantAvailable();
-            lpBalancePull = Math.min(lpBalancePull, wantAmount.mul(BASIS_PRECISION).div(amountInLp));
+            lpBalancePull = Math.min(lpBalancePull, wantAmount.mul(STD_PRECISION).div(amountInLp));
         }
+
+        bool providerPercentLargerThanDust = lpBalancePull > lpDust;
+
+        if (providerPercentLargerThanDust) {
+            _processWantFromProviders(lpBalancePull);
+        }
+    }
+
+    function _processWantFromProviders(uint256 _lpBalancePull) internal {
+        uint256 amountInLp;
+        uint256 wantAmount; 
 
         for (uint256 i = 0; i < numTokens; i++){
             amountInLp = getLpReserves(i);
-            wantAmount = Math.min(IStrat(strategies[tokens[i]]).wantAvailable(), amountInLp.mul(lpBalancePull).div(BASIS_PRECISION));
+            wantAmount = Math.min(IStrat(strategies[tokens[i]]).wantAvailable(), amountInLp.mul(_lpBalancePull).div(STD_PRECISION));
             IStrat(strategies[tokens[i]]).provideWant(wantAmount);
         }
 
-        _joinPool(lpBalancePull.mul(slippageAdj).div(BASIS_PRECISION));
+        uint256 bptSupply = lp.totalSupply();
+        uint256 bptOut = bptSupply.mul(_lpBalancePull).div(STD_PRECISION).mul(slippageAdj).div(BASIS_PRECISION);
+        _joinPool(bptOut);
         //_depositToFarm();
 
-
     }
-
 
     function getLpReserves(uint256 _index) public view returns (uint256 _amount){
         (IERC20[] memory tokens, uint256[] memory totalBalances, uint256 lastChangeBlock) = balancerVault.getPoolTokens(balancerPoolId);
@@ -368,7 +386,7 @@ contract jointLPHolderBalancer is Ownable {
         address strategy1 = strategies[tokens[1]];
 
         tokens[0].transfer(strategy0, bal0);
-        tokens[1].transfer(strategy0, bal1);
+        tokens[1].transfer(strategy1, bal1);
 
         IStrat(strategy0).adjustJointDebtOnWithdraw(bal0.mul(BASIS_PRECISION).div(debtOutstanding(address(tokens[0]))));
         IStrat(strategy1).adjustJointDebtOnWithdraw(bal1.mul(BASIS_PRECISION).div(debtOutstanding(address(tokens[1]))));
@@ -537,7 +555,7 @@ contract jointLPHolderBalancer is Ownable {
         if (_amount > 0){
             uint256 _lpUnpooled = lp.balanceOf(address(this));
             if (_amount > _lpUnpooled){
-                farm.withdraw(farmPid, _amount.sub(_lpUnpooled), address(this));
+                farm.withdrawAndHarvest(farmPid, _amount.sub(_lpUnpooled), address(this));
             }
             
         }
@@ -608,8 +626,17 @@ contract jointLPHolderBalancer is Ownable {
         _harvestInternal();
     }
 
+    function canHarvestJoint() public view returns(bool) {
+        uint256 timeSinceSale = block.timestamp.sub(lastRewardSale);
+        return(timeSinceSale >= minRewardSaleTime && lpBalance() > 0);
+    }
+
+    function harvestFromProvider() external onlyStrategies {
+        _harvestInternal();
+    }
+
     function _harvestInternal() internal {
-        //gauge.claim_rewards();
+        lastRewardSale = block.timestamp;
         farm.harvest(farmPid, address(this));
         
         for (uint256 i = 0; i < rewardTokens.length; i++){
