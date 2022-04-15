@@ -36,6 +36,11 @@ interface IMasterChefv2 {
         address to
     ) external;
 
+    function pendingLqdr(uint256 _pid, address _user)
+        external
+        view
+        returns (uint256);
+
     function lqdrPerBlock() external view returns (uint256);
 
     function lpToken(uint256 pid) external view returns (address);
@@ -64,6 +69,9 @@ interface IStrat {
     function getOraclePrice() external view returns (uint256);
     function isInProfit() external view returns(bool);
     function estimatedTotalAssets() external view returns(uint256); 
+    function setJointTokenIndex(uint256 _tokenIndex) external;
+    function setOtherJointTokenIndex(uint256 _otherTokenIndex) external;
+
 }
 
 /// @title Manages LP from two provider strats
@@ -74,7 +82,6 @@ interface IStrat {
 
 contract jointLPHolderUniV2 is Ownable {
 
-    using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
     
@@ -87,9 +94,9 @@ contract jointLPHolderUniV2 is Ownable {
     uint256 constant STD_PRECISION = 1e12;
     uint256 public rebalancePercent = 10000;
     /// @notice to make sure we don't try to do tiny rebalances with insufficient swap amount when withdrawing have some buffer 
-    uint256 bpsRebalanceDiff = 50;
+    uint256 public bpsRebalanceDiff = 50;
     // @we rebalance if debt ratio for either assets goes above this ratio 
-    uint256 debtUpper = 10250;
+    uint256 public debtUpper = 10250;
     uint256 public lastRewardSale; 
     // time between sales of reward token -> to avoid both providers calling within same time 
     uint256 public minRewardSaleTime = 3600;
@@ -98,8 +105,8 @@ contract jointLPHolderUniV2 is Ownable {
     uint256 public priceSourceDiff = 250; // 2.5% Default
     bool public initialisedStrategies = false; 
 
-    address keeper; 
-    address strategist;
+    address public keeper; 
+    address public strategist;
 
     // this relative to STD_PRECISION so 1e14 is 1 / 1e4 
     uint256 lpDust = 1e4; 
@@ -125,7 +132,7 @@ contract jointLPHolderUniV2 is Ownable {
     ) public {
         lastRewardSale = block.timestamp;
         lp = IUniswapV2Pair(_lp);
-        IERC20(address(lp)).safeApprove(_router, uint256(-1));
+        IERC20(address(lp)).approve(_router, uint256(-1));
 
         farmPid = _pid;
         IERC20 newToken0 = IERC20(lp.token0());
@@ -145,6 +152,10 @@ contract jointLPHolderUniV2 is Ownable {
         lp.approve(_farm, uint256(-1));
 
 
+    }
+
+    function name() external view returns (string memory) {
+        return "JointLPHolderUniV2";
     }
 
     function setStrategist(address _strategist) external onlyAuthorized {
@@ -169,7 +180,18 @@ contract jointLPHolderUniV2 is Ownable {
         for (uint i = 0; i < numTokens; i++){
             IStrat strategy = IStrat(_strategies[i]);
             strategies[IERC20(strategy.want())] = address(strategy);
+            _setTokenIndex(IERC20(strategy.want()), address(strategy));
         }
+    }
+
+    function _setTokenIndex(IERC20 _stratToken, address _strategy) internal {
+        for (uint i = 0; i < numTokens; i++){
+            if (_stratToken == tokens[i]){
+                IStrat(_strategy).setJointTokenIndex(i);
+            } else {
+                IStrat(_strategy).setOtherJointTokenIndex(i);
+            }
+        }        
     }
 
     function _isStrategy(address _strategy) internal view returns(bool) {
@@ -329,6 +351,14 @@ contract jointLPHolderUniV2 is Ownable {
         return true;
     }
 
+    function calcPriceDiff() public view returns (uint256) {
+        uint256 _amountIn = tokens[0].totalSupply();
+        uint256 lpPrice = convertAtoB(address(tokens[0]), address(tokens[1]), _amountIn);
+        uint256 oraclePrice = convertAtoBOracle(address(tokens[0]), address(tokens[1]), _amountIn);
+        uint256 priceSourceRatio = lpPrice.mul(BASIS_PRECISION).div(oraclePrice);
+        return(priceSourceRatio);
+    }
+
     /// @notice rebalances the position to bring back to delta neutral position 
     // we first find the difference between the debt ratios 
     // we remove a portion of the LP equal to half of the difference of the debt ratios in LP (adjusted by rebalcne percent)
@@ -462,6 +492,10 @@ contract jointLPHolderUniV2 is Ownable {
     // how much of the lP token do we hold 
     function lpBalance() public view returns(uint256){
         return(lp.balanceOf(address(this)).add(countLpPooled()));
+    }
+
+    function pendingRewards() public view returns(uint256) { 
+        return(farm.pendingLqdr(farmPid, address(this)));
     }
 
     /// @notice simple helper function to convert tokens based on LP price 
@@ -607,7 +641,6 @@ contract jointLPHolderUniV2 is Ownable {
 
     function harvestRewards() external onlyKeepers {
         _harvestInternal();
-        lastRewardSale = block.timestamp;
     }
 
     function canHarvestJoint() public view returns(bool) {
@@ -620,13 +653,13 @@ contract jointLPHolderUniV2 is Ownable {
     }
 
     function _harvestInternal() internal {
-        //gauge.claim_rewards();
         farm.harvest(farmPid, address(this));
         
         for (uint256 i = 0; i < rewardTokens.length; i++){
             uint256 farmAmount = rewardTokens[i].balanceOf(address(this));
             _sellRewardTokens(rewardTokens[i],farmAmount);
         }
+        lastRewardSale = block.timestamp;
 
     }
 
@@ -651,7 +684,7 @@ contract jointLPHolderUniV2 is Ownable {
                 address(this),
                 now
             );
-        uint256 _slippage = expectedAmountOut.sub(amounts[amounts.length - 1]);        
+        _slippage = expectedAmountOut.sub(amounts[amounts.length - 1]);        
     }
 
     // this sells reward tokenss in proportion to their debt & automatically sends proceeds to relevant strategy 

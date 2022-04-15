@@ -147,7 +147,7 @@ CONFIG = {
 
 @pytest.fixture
 def conf():
-    yield CONFIG['USDCFTMSpookyLQDR']
+    yield CONFIG['WETHFTMSpookyLQDR']
 
 @pytest.fixture
 def gov(accounts):
@@ -275,7 +275,7 @@ def vaults(pm, gov, rewards, guardian, management, tokens):
     yield vaults
 
 @pytest.fixture
-def strategies(strategist, keeper, vaults, tokens, gov, conf, jointLP, Strategy, StrategyHnd):
+def strategies(strategist, StrategyInsurance  ,keeper, vaults, tokens, gov, conf, jointLP, Strategy, StrategyHnd):
 
 
     strategies = []
@@ -283,7 +283,8 @@ def strategies(strategist, keeper, vaults, tokens, gov, conf, jointLP, Strategy,
     for vault in vaults : 
         token = tokens[i]
         strategy = Strategy.deploy(vault, jointLP, scTokenDict[tokens[i].address], screamComptroller, conf['router'], SCREAM, {"from": strategist} )
-
+        insurance = StrategyInsurance.deploy(strategy, {'from' : strategist})
+        strategy.setInsurance(insurance, {'from': gov})
         strategies = strategies + [strategy]
         vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
         i += 1

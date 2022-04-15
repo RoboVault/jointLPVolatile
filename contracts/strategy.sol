@@ -27,6 +27,7 @@ import "./interfaces/uniswap.sol";
 import "./interfaces/ctoken.sol";
 import "./interfaces/ipriceoracle.sol";
 import "./screampriceoracle.sol";
+import {IStrategyInsurance} from "./StrategyInsurance.sol";
 
 // Import interfaces for many popular DeFi projects, or add your own!
 
@@ -37,6 +38,7 @@ interface IJointVault {
     function allStratsInProfit() external view returns(bool);
     function harvestFromProvider() external;
     function canHarvestJoint() external view returns(bool);
+    function name() external view returns (string memory);
 }
 
 contract Strategy is BaseStrategy {
@@ -45,12 +47,14 @@ contract Strategy is BaseStrategy {
     using Address for address;
     using SafeMath for uint256;
 
-    IJointVault jointVault; 
+    IJointVault public jointVault; 
     ICTokenErc20 public cTokenLend;
     IPriceOracle oracle;
     IUniswapV2Router01 router;
     IComptroller comptroller;
     IERC20 compToken;
+    IStrategyInsurance public insurance;
+
 
     modifier onlyJoint() {
         _onlyJoint();
@@ -61,7 +65,8 @@ contract Strategy is BaseStrategy {
         require(msg.sender == address(jointVault));
     }
 
-
+    uint256 public jointTokenIndex;
+    uint256 public otherJointTokenIndex;
     uint256 constant STD_PRECISION = 1e18;
     uint256 constant BASIS_PRECISION = 10000;
     address weth;
@@ -73,9 +78,9 @@ contract Strategy is BaseStrategy {
     uint256 public debtJointMax = 9500;    
     // this % of want must be in lend before calling redeemWant (avoids issue with tiny amounts blocking withdrawals)
     uint256 public lendDustPercent = 10; 
-    bool internal forceHarvestTriggerOnce;
-    bool internal sellJointRewardsAtHarvest = true; 
-    bool internal sellCompAtHarvest = false; 
+    bool public forceHarvestTriggerOnce;
+    bool public sellJointRewardsAtHarvest = true; 
+    bool public sellCompAtHarvest = false; 
 
     constructor(
         address _vault,
@@ -108,16 +113,20 @@ contract Strategy is BaseStrategy {
             address(cTokenLend)
         );
 
-        // You can set these parameters on deployment to whatever you want
-        // maxReportDelay = 6300;
-        // profitFactor = 100;
-        // debtThreshold = 0;
+        maxReportDelay = 43200; // 12 hours
+        minReportDelay = 28800; // 8 hours 
+        profitFactor = 1500;
+        
     }
 
     // ******** OVERRIDE THESE METHODS FROM BASE CONTRACT ************
 
     function name() external view override returns (string memory) {
         return "StrategyJointLpProvider";
+    }
+
+    function jointLPName() external view returns (string memory) {
+        return (jointVault.name());
     }
 
     function estimatedTotalAssets() public view override returns (uint256) {
@@ -199,6 +208,23 @@ contract Strategy is BaseStrategy {
 
         debtJoint = balanceJoint();
 
+        // Check if we're net loss or net profit
+        if (_loss >= _profit) {
+            _profit = 0;
+            _loss = _loss.sub(_profit);
+            insurance.reportLoss(totalDebt, _loss);
+        } else {
+            _profit = _profit.sub(_loss);
+            _loss = 0;
+            uint256 insurancePayment =
+                insurance.reportProfit(totalDebt, _profit);
+            _profit = _profit.sub(insurancePayment);
+
+            // double check insurance isn't asking for too much or zero
+            if (insurancePayment > 0 && insurancePayment < _profit) {
+                want.transfer(address(insurance), insurancePayment);
+            }
+        }
     }
 
     function _harvestRewards() internal {
@@ -251,6 +277,18 @@ contract Strategy is BaseStrategy {
 
     }
 
+    function setInsurance(address _insurance) external onlyAuthorized {
+        require(address(insurance) == address(0));
+        insurance = IStrategyInsurance(_insurance);
+    }
+
+    function migrateInsurance(address _newInsurance) external onlyGovernance {
+        require(address(_newInsurance) == address(0));
+        insurance.migrateInsurance(_newInsurance);
+        insurance = IStrategyInsurance(_newInsurance);
+    }
+
+
     ///@notice This allows us to manually harvest with our keeper as needed
     function setForceHarvestTriggerOnce(bool _forceHarvestTriggerOnce) external onlyAuthorized {
         forceHarvestTriggerOnce = _forceHarvestTriggerOnce;
@@ -263,6 +301,14 @@ contract Strategy is BaseStrategy {
     function setdebtJointThresholds(uint256 _debtJointMin, uint256 _debtJointMax) external onlyAuthorized {
         debtJointMin = _debtJointMin;
         debtJointMax = _debtJointMax;
+    }
+
+    function setJointTokenIndex(uint256 _jointTokenIndex) external onlyJoint {
+        jointTokenIndex = _jointTokenIndex;
+    }
+
+    function setOtherJointTokenIndex(uint256 _otherJointTokenIndex) external onlyJoint {
+        otherJointTokenIndex = _otherJointTokenIndex;
     }
 
     function isInProfit() public view returns(bool) {
@@ -474,20 +520,7 @@ contract Strategy is BaseStrategy {
         returns (address[] memory)
     {}
 
-    /**
-     * @notice
-     *  Provide an accurate conversion from `_amtInWei` (denominated in wei)
-     *  to `want` (using the native decimal characteristics of `want`).
-     * @dev
-     *  Care must be taken when working with decimals to assure that the conversion
-     *  is compatible. As an example:
-     *
-     *      given 1e17 wei (0.1 ETH) as input, and want is USDC (6 decimals),
-     *      with USDC/ETH = 1800, this should give back 1800000000 (180 USDC)
-     *
-     * @param _amtInWei The amount (in wei/1e-18 ETH) to convert to `want`
-     * @return The amount in `want` of `_amtInEth` converted to `want`
-     **/
+
     function ethToWant(uint256 _amtInWei)
         public
         view
@@ -495,7 +528,6 @@ contract Strategy is BaseStrategy {
         override
         returns (uint256)
     {
-        // TODO create an accurate price oracle
         return _amtInWei;
     }
 }
