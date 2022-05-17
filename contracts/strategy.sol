@@ -39,6 +39,7 @@ interface IJointVault {
     function harvestFromProvider() external;
     function canHarvestJoint() external view returns(bool);
     function name() external view returns (string memory);
+    function calcDebtRatioToken(uint256 _tokenIndex) external view returns(uint256);
 }
 
 contract Strategy is BaseStrategy {
@@ -54,7 +55,6 @@ contract Strategy is BaseStrategy {
     IComptroller comptroller;
     IERC20 compToken;
     IStrategyInsurance public insurance;
-
 
     modifier onlyJoint() {
         _onlyJoint();
@@ -81,6 +81,9 @@ contract Strategy is BaseStrategy {
     bool public forceHarvestTriggerOnce;
     bool public sellJointRewardsAtHarvest = true; 
     bool public sellCompAtHarvest = false; 
+
+    // we look at how far debt Ratio is from 100% and take some fee equal to a portion of it's magnitude
+    uint256 public debtDifferenceFee = 2000; 
 
     constructor(
         address _vault,
@@ -154,6 +157,10 @@ contract Strategy is BaseStrategy {
 
     function balanceOfWant() public view returns(uint256) {
         return(want.balanceOf(address(this)));
+    }
+
+    function calcDebtRatio() public view returns(uint256) {
+        return jointVault.calcDebtRatioToken(jointTokenIndex);
     }
 
     // how much want is available to move to join LP provider 
@@ -241,6 +248,15 @@ contract Strategy is BaseStrategy {
         returns (uint256 _liquidatedAmount, uint256 _loss)
     {
         /// 1) check how much want is available 
+        uint256 jointDebtRatio = calcDebtRatio();
+        uint256 debtRatioDiff; 
+        uint256 amountFromJoint;
+        if (jointDebtRatio > BASIS_PRECISION) {
+            debtRatioDiff = jointDebtRatio.sub(BASIS_PRECISION);
+        } else {
+            debtRatioDiff = BASIS_PRECISION.sub(jointDebtRatio);
+        }
+
         uint256 balanceWant = balanceOfWant();
         if (_amountNeeded <= balanceWant) {
             return (_amountNeeded, 0);
@@ -258,12 +274,13 @@ contract Strategy is BaseStrategy {
         } else {
             // if not enough after removing from lend we pull from joint 
             if (debtJoint > 0) {
-                uint256 amountFromJoint = _amountNeeded.sub(balanceWant);
+                amountFromJoint = _amountNeeded.sub(balanceWant);
                 uint256 debtProportion = Math.min(amountFromJoint.mul(BASIS_PRECISION).div(debtJoint), BASIS_PRECISION);
                 if (debtProportion > 9500){
                     debtProportion = BASIS_PRECISION;
                 }
                 jointVault.withdraw(debtProportion);
+    
             }
         }
 
@@ -273,7 +290,10 @@ contract Strategy is BaseStrategy {
             _loss = _amountNeeded.sub(_liquidatedAmount);
         }
 
-
+        if (amountFromJoint > 0) {
+            uint256 _jointFee = amountFromJoint.mul(debtRatioDiff).div(BASIS_PRECISION).mul(debtDifferenceFee).div(BASIS_PRECISION);
+            _loss = _loss.add(_jointFee);
+        }
 
     }
 
@@ -297,6 +317,11 @@ contract Strategy is BaseStrategy {
     function setLendDustPercent(uint256 _lendDustPercent) external onlyAuthorized {
         lendDustPercent = _lendDustPercent;
     }
+
+    function setDebtDifferenceFee(uint256 _debtDifferenceFee) external onlyAuthorized {
+        debtDifferenceFee = _debtDifferenceFee;
+    }
+
 
     function setdebtJointThresholds(uint256 _debtJointMin, uint256 _debtJointMax) external onlyAuthorized {
         debtJointMin = _debtJointMin;

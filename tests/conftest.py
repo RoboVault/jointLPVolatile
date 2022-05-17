@@ -147,7 +147,7 @@ CONFIG = {
 
 @pytest.fixture
 def conf():
-    yield CONFIG['WETHFTMSpookyLQDR']
+    yield CONFIG['USDCFTMSpookyLQDR']
 
 @pytest.fixture
 def gov(accounts):
