@@ -30,8 +30,13 @@ SCWFTM = '0x5AA53f03197E08C4851CAD8C92c7922DA5857E5d'
 SCFRAX = '0x4E6854EA84884330207fB557D1555961D85Fc17E'
 SCWETH = '0xC772BA6C2c28859B7a0542FAa162a56115dDCE25'
 
+
+IBUSDC = '0x328A7b4d538A2b3942653a9983fdA3C12c571141'
+IBWFTM = '0xd528697008aC67A21818751A5e3c58C8daE54696'
+
 screamComptroller = '0x260E596DAbE3AFc463e75B6CC05d8c46aCAcFB09'
 hndComptroller = '0x0F390559F258eB8591C8e31Cf0905E97cf36ACE2'
+ibComptroller = '0x4250A6D3BD57455d7C6821eECb6206F507576cD2'
 
 scTokenDict = {
     USDC : SCUSDC,
@@ -41,8 +46,14 @@ scTokenDict = {
     WFTM : SCWFTM,
     FRAX : SCFRAX,
     WETH : SCWETH
-
 }
+
+ibTokenDict = {
+    USDC : IBUSDC,
+    WFTM : IBWFTM
+    
+}
+
 
 """
 'HND Lend Tokens'
@@ -95,7 +106,7 @@ CONFIG = {
         'tokens' : [USDC, WFTM],
         'farm' : SPOOKY_MASTERCHEF,
         'farmPID' : 2,
-        'comptroller' : screamComptroller,
+        'comptroller' : ibComptroller,
         'harvest_tokens': [BOO],
         'harvestWhale' : 0xa48d959AE2E88f1dAA7D5F611E01908106dE7598,
         'compToken': SCREAM,
@@ -108,7 +119,7 @@ CONFIG = {
         'tokens' : [USDC, WFTM],
         'farm' : lqdrMasterChef,
         'farmPID' : 11,
-        'comptroller' : screamComptroller,
+        'comptroller' : ibComptroller,
         'harvest_tokens': [lqdr],
         'harvestWhales' : [lqdrMasterChef],
         'compToken': SCREAM,
@@ -127,21 +138,7 @@ CONFIG = {
         'compToken': SCREAM,
         'router': SPOOKY_ROUTER,
         'lpType' : 'uniV2'
-    },
-
-    'FRAXFTMSOLID' : {
-        'LP': '0x9ae95682bde174993ecb818Cc23E8607d2e54667',
-        'tokens' : [FRAX, WFTM],
-        'farm' : SPOOKY_MASTERCHEF,
-        'farmPID' : 2,
-        'comptroller' : screamComptroller,
-        'harvest_tokens': [oxd, solid],
-        'harvestWhales' : ['0xDA00527EDAabCe6F97D89aDb10395f719E5559b9', '0xcBd8fEa77c2452255f59743f55A3Ea9d83b3c72b'],
-        'compToken': SCREAM,
-        'router': SPOOKY_ROUTER,
-        'lpType' : 'solid'      
     }
-
 }
 
 
@@ -245,15 +242,25 @@ def scTokens(conf, tokens):
     yield scTokens
 
 @pytest.fixture
-def jointLP(pm, gov, conf, keeper ,rewards, guardian, management, jointLPHolderUniV2, jointLPHolderSolidly) : 
+def ibTokens(conf, tokens):
+    nTokens = 2
+    #tokenList = conf['tokens']
+    ibTokens = []
+    for i in range(nTokens) : 
+        token = tokens[i]
+        ibTokens = ibTokens + [ibTokenDict[token.address]]
+    # token_address = "0x04068DA6C83AFCFA0e13ba15A6696662335D5B75"  # USDC
+    # token_address = "0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83"  # this should be the address of the ERC-20 used by the strategy/vault (DAI)
+    yield ibTokens
+
+@pytest.fixture
+def jointLP(pm, gov, conf, keeper ,rewards, guardian, management, jointLPHolderUniV2) : 
     lp = conf['LP']
     farmToken = conf['harvest_tokens'][0]
     nTokens = 2
     if conf['lpType'] == 'uniV2':
         jointLP = jointLPHolderUniV2.deploy(lp, conf['farm'] , conf['farmPID'], conf['router'], farmToken, {'from' : gov})
-    else :
-        jointLP = jointLPHolderSolidly.deploy(lp, conf['router'], {'from' : gov})
-
+    
     jointLP.setKeeper(keeper)
     yield jointLP
 
@@ -275,14 +282,14 @@ def vaults(pm, gov, rewards, guardian, management, tokens):
     yield vaults
 
 @pytest.fixture
-def strategies(strategist, StrategyInsurance  ,keeper, vaults, tokens, gov, conf, jointLP, Strategy, StrategyHnd):
+def strategies(strategist, StrategyInsurance  ,keeper, vaults, tokens, gov, conf, jointLP, Strategy):
 
 
     strategies = []
     i = 0
     for vault in vaults : 
         token = tokens[i]
-        strategy = Strategy.deploy(vault, jointLP, scTokenDict[tokens[i].address], screamComptroller, conf['router'], SCREAM, {"from": strategist} )
+        strategy = Strategy.deploy(vault, jointLP, ibTokenDict[tokens[i].address], ibComptroller, conf['router'], SCREAM, {"from": strategist} )
         insurance = StrategyInsurance.deploy(strategy, {'from' : strategist})
         strategy.setInsurance(insurance, {'from': gov})
         strategies = strategies + [strategy]

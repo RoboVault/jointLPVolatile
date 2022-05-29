@@ -11,7 +11,7 @@ def test_migration(
     amounts,
     strategy_contract,
     jointLP_contract,
-    scTokens,
+    ibTokens,
     conf,
     strategist,
     gov,
@@ -38,9 +38,9 @@ def test_migration(
 
     for i in range(len(tokens)) : 
         token = tokens[i]
-        scToken = scTokens[i]
+        ibToken = ibTokens[i]
         vault = vaults[i]
-        newStrategy = strategy_contract.deploy(vault, newJointLP, scToken, conf['comptroller'], conf['router'], conf['compToken'], {"from": strategist} )        
+        newStrategy = strategy_contract.deploy(vault, newJointLP, ibToken, conf['comptroller'], conf['router'], conf['compToken'], {"from": strategist} )        
         newStrategies = newStrategies + [newStrategy]
 
     newJointLP.initaliseStrategies(newStrategies, {"from": gov})

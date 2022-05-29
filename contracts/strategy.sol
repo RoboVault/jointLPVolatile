@@ -29,7 +29,6 @@ import "./interfaces/ipriceoracle.sol";
 import "./screampriceoracle.sol";
 import {IStrategyInsurance} from "./StrategyInsurance.sol";
 
-// Import interfaces for many popular DeFi projects, or add your own!
 
 interface IJointVault {
     function addToJoint() external;
@@ -160,7 +159,12 @@ contract Strategy is BaseStrategy {
     }
 
     function calcDebtRatio() public view returns(uint256) {
-        return jointVault.calcDebtRatioToken(jointTokenIndex);
+        if (debtJoint ==0) {
+            return(0);
+        }
+        else {
+            return jointVault.calcDebtRatioToken(jointTokenIndex);
+        }
     }
 
     // how much want is available to move to join LP provider 

@@ -563,7 +563,7 @@ def test_migration_offsetA(
     strategy_contract,
     jointLP_contract,
     jointLP,
-    scTokens,
+    ibTokens,
     conf,
     strategist,
     gov,
@@ -592,7 +592,7 @@ def test_migration_offsetA(
 
     for i in range(len(tokens)) : 
         token = tokens[i]
-        scToken = scTokens[i]
+        scToken = ibTokens[i]
         vault = vaults[i]
         newStrategy = strategy_contract.deploy(vault, newJointLP, scToken, conf['comptroller'], conf['router'], conf['compToken'], {"from": strategist} )        
         newStrategies = newStrategies + [newStrategy]
@@ -625,7 +625,7 @@ def test_migration_offsetB(
     strategy_contract,
     jointLP_contract,
     jointLP,
-    scTokens,
+    ibTokens,
     conf,
     strategist,
     gov,
@@ -654,7 +654,7 @@ def test_migration_offsetB(
 
     for i in range(len(tokens)) : 
         token = tokens[i]
-        scToken = scTokens[i]
+        scToken = ibTokens[i]
         vault = vaults[i]
         newStrategy = strategy_contract.deploy(vault, newJointLP, scToken, conf['comptroller'], conf['router'], conf['compToken'], {"from": strategist} )        
         newStrategies = newStrategies + [newStrategy]
