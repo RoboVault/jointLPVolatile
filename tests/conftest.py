@@ -33,6 +33,7 @@ SCWETH = '0xC772BA6C2c28859B7a0542FAa162a56115dDCE25'
 
 IBUSDC = '0x328A7b4d538A2b3942653a9983fdA3C12c571141'
 IBWFTM = '0xd528697008aC67A21818751A5e3c58C8daE54696'
+IBFRAX = '0x2919Ec3e7B35fB0C8597A5f806fb1f59c540EAb4'
 
 screamComptroller = '0x260E596DAbE3AFc463e75B6CC05d8c46aCAcFB09'
 hndComptroller = '0x0F390559F258eB8591C8e31Cf0905E97cf36ACE2'
@@ -50,7 +51,8 @@ scTokenDict = {
 
 ibTokenDict = {
     USDC : IBUSDC,
-    WFTM : IBWFTM
+    WFTM : IBWFTM,
+    FRAX : IBFRAX
     
 }
 
@@ -138,13 +140,28 @@ CONFIG = {
         'compToken': SCREAM,
         'router': SPOOKY_ROUTER,
         'lpType' : 'uniV2'
-    }
+    }, 
+
+    'FRAXFTMSpiritLQDR': {
+        'LP': '0x7ed0cdDB9BB6c6dfEa6fB63E117c8305479B8D7D',
+        'tokens' : [FRAX, WFTM],
+        'farm' : lqdrMasterChef,
+        'farmPID' : 33,
+        'comptroller' : ibComptroller,
+        'harvest_tokens': [lqdr],
+        'harvestWhales' : [lqdrMasterChef],
+        'compToken': SCREAM,
+        'router': SPIRIT_ROUTER,
+        'lpType' : 'uniV2'
+    },    
+
+
 }
 
 
 @pytest.fixture
 def conf():
-    yield CONFIG['USDCFTMSpookyLQDR']
+    yield CONFIG['FRAXFTMSpiritLQDR']
 
 @pytest.fixture
 def gov(accounts):
@@ -313,7 +330,7 @@ def jointLP_contract():
 
 @pytest.fixture
 def whales(tokens, Contract) : 
-    router = SPIRIT_ROUTER
+    router = SPOOKY_ROUTER
     altRouterContract = Contract(router)
     factory = Contract(altRouterContract.factory())
     whales = []
