@@ -2,22 +2,67 @@
 pragma experimental ABIEncoderV2;
 pragma solidity 0.6.12;
 
-
 interface IBaseV1Pair {
-    function metadata() external view returns (uint dec0, uint dec1, uint r0, uint r1, bool st, address t0, address t1);
-    function transferFrom(address src, address dst, uint amount) external returns (bool);
-    function permit(address owner, address spender, uint value, uint deadline, uint8 v, bytes32 r, bytes32 s) external;
-    function swap(uint amount0Out, uint amount1Out, address to, bytes calldata data) external;
-    function burn(address to) external returns (uint amount0, uint amount1);
-    function mint(address to) external returns (uint liquidity);
-    function getReserves() external view returns (uint112 _reserve0, uint112 _reserve1, uint32 _blockTimestampLast);
-    function getAmountOut(uint, address) external view returns (uint);
-    function token0() external view returns(address);
-    function token1() external view returns(address);
-    function totalSupply() external view returns(uint256);
-    function balanceOf(address owner) external view returns(uint256);
+    function metadata()
+        external
+        view
+        returns (
+            uint256 dec0,
+            uint256 dec1,
+            uint256 r0,
+            uint256 r1,
+            bool st,
+            address t0,
+            address t1
+        );
 
+    function transferFrom(
+        address src,
+        address dst,
+        uint256 amount
+    ) external returns (bool);
 
+    function permit(
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external;
+
+    function swap(
+        uint256 amount0Out,
+        uint256 amount1Out,
+        address to,
+        bytes calldata data
+    ) external;
+
+    function burn(address to)
+        external
+        returns (uint256 amount0, uint256 amount1);
+
+    function mint(address to) external returns (uint256 liquidity);
+
+    function getReserves()
+        external
+        view
+        returns (
+            uint112 _reserve0,
+            uint112 _reserve1,
+            uint32 _blockTimestampLast
+        );
+
+    function getAmountOut(uint256, address) external view returns (uint256);
+
+    function token0() external view returns (address);
+
+    function token1() external view returns (address);
+
+    function totalSupply() external view returns (uint256);
+
+    function balanceOf(address owner) external view returns (uint256);
 }
 
 struct Route {
@@ -27,52 +72,63 @@ struct Route {
 }
 
 interface ISolidlyRouter01 {
-
-
     function factory() external view returns (address);
-    function wftm() external view returns (address);
+
+    function weth() external view returns (address);
 
     function addLiquidity(
         address tokenA,
         address tokenB,
         bool stable,
-        uint amountADesired,
-        uint amountBDesired,
-        uint amountAMin,
-        uint amountBMin,
+        uint256 amountADesired,
+        uint256 amountBDesired,
+        uint256 amountAMin,
+        uint256 amountBMin,
         address to,
-        uint deadline
-    ) external returns (uint amountA, uint amountB, uint liquidity);
+        uint256 deadline
+    )
+        external
+        returns (
+            uint256 amountA,
+            uint256 amountB,
+            uint256 liquidity
+        );
 
     function removeLiquidity(
         address tokenA,
         address tokenB,
         bool stable,
-        uint liquidity,
-        uint amountAMin,
-        uint amountBMin,
+        uint256 liquidity,
+        uint256 amountAMin,
+        uint256 amountBMin,
         address to,
-        uint deadline
-    ) external returns (uint amountA, uint amountB);
+        uint256 deadline
+    ) external returns (uint256 amountA, uint256 amountB);
 
     function swapExactTokensForTokensSimple(
-        uint amountIn,
-        uint amountOutMin,
+        uint256 amountIn,
+        uint256 amountOutMin,
         address tokenFrom,
         address tokenTo,
         bool stable,
         address to,
-        uint deadline
-    ) external returns (uint[] calldata amounts);
+        uint256 deadline
+    ) external returns (uint256[] calldata amounts);
 
     function swapExactTokensForTokens(
-        uint amountIn,
-        uint amountOutMin,
+        uint256 amountIn,
+        uint256 amountOutMin,
         Route[] calldata routes,
         address to,
-        uint deadline
-    ) external returns (uint[] calldata amounts);
+        uint256 deadline
+    ) external returns (uint256[] calldata amounts);
 
+    // performs chained getAmountOut calculations on any number of pairs
+    function getAmountOut(
+        uint256 amountIn,
+        address tokenIn,
+        address tokenOut
+    ) external view returns (uint256 amount, bool stable);
 
     // function sortTokens(address tokenA, address tokenB) public pure returns (address token0, address token1) {
     //     require(tokenA != tokenB, 'BaseV1Router: IDENTICAL_ADDRESSES');
@@ -337,8 +393,6 @@ interface ISolidlyRouter01 {
     //         );
     //     }
     // }
-
-
 
     // function swapExactFTMForTokens(uint amountOutMin, route[] calldata routes, address to, uint deadline)
     // external
