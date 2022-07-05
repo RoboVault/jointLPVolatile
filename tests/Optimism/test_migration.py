@@ -3,6 +3,8 @@ from brownie import interface, Contract, accounts
 import pytest
 import time 
 
+ZIP_ROUTER = '0xE6Df0BB08e5A97b40B21950a0A51b94c4DbA0Ff6'
+
 def test_migration(
     chain,
     tokens,
@@ -11,7 +13,7 @@ def test_migration(
     amounts,
     strategy_contract,
     jointLP_contract,
-    ibTokens,
+    aTokens,
     conf,
     strategist,
     gov,
@@ -32,15 +34,16 @@ def test_migration(
         assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     farmToken = conf['harvest_tokens'][0]
+    
     newJointLP = jointLP_contract.deploy(conf['LP'], conf['farm'] , conf['farmPID'], conf['router'], farmToken, {'from' : gov})
 
     newStrategies = []
 
     for i in range(len(tokens)) : 
         token = tokens[i]
-        ibToken = ibTokens[i]
+        aToken = aTokens[i]
         vault = vaults[i]
-        newStrategy = strategy_contract.deploy(vault, newJointLP, ibToken, conf['comptroller'], conf['router'], conf['compToken'], {"from": strategist} )        
+        newStrategy = strategy_contract.deploy(vault, newJointLP, aToken, conf['comptroller'],ZIP_ROUTER, conf['compToken'], {"from": strategist} )        
         newStrategies = newStrategies + [newStrategy]
 
     newJointLP.initaliseStrategies(newStrategies, {"from": gov})

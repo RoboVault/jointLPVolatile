@@ -77,8 +77,8 @@ CONFIG = {
         'farmPID' : 0,
         'comptroller' : POOL_ADDRESS_PROVIDER,
         'harvest_tokens': [VELO],
-        'harvestWhale' : '0x9c7305eb78a432ced5C4D14Cac27E8Ed569A2e26',
-        'compToken': '0x9c7305eb78a432ced5C4D14Cac27E8Ed569A2e26',
+        'harvestWhales' : ['0x9c7305eb78a432ced5C4D14Cac27E8Ed569A2e26'],
+        'compToken': VELO,
         'router': VELO_ROUTER,
         'lpType' : 'solid'
     },
@@ -221,8 +221,15 @@ def vaults(pm, gov, rewards, guardian, management, tokens):
     yield vaults
 
 @pytest.fixture
-def strategies(strategist, StrategyInsurance  ,keeper, vaults, tokens, gov, conf, jointLP, providerAAVE):
+def strategies(strategist, StrategyInsurance, MockAaveOracle, accounts  ,keeper, vaults, tokens, gov, conf, jointLP, providerAAVE):
 
+    # Set the mock price oracle (oracle fails when running through tests)
+    pool_address_provider = interface.IPoolAddressesProvider(POOL_ADDRESS_PROVIDER)
+    old_oracle = pool_address_provider.getPriceOracle()
+    oracle = MockAaveOracle.deploy(old_oracle, {'from': accounts[0]})
+
+    admin = accounts.at(pool_address_provider.owner(), True)
+    pool_address_provider.setPriceOracle(oracle, {'from': admin})
 
     strategies = []
     i = 0
@@ -242,12 +249,17 @@ def strategies(strategist, StrategyInsurance  ,keeper, vaults, tokens, gov, conf
 @pytest.fixture
 def strategy_contract():
     # yield  project.CoreStrategyProject.USDCWFTMScreamLqdrSpooky
-    yield  project.JointlpvolatileProject.Strategy
+    yield  project.JointlpvolatileProject.providerAAVE
 
 @pytest.fixture
-def jointLP_contract():
+def jointLP_contract(conf):
     # yield  project.CoreStrategyProject.USDCWFTMScreamLqdrSpooky
-    yield  project.JointlpvolatileProject.jointLPHolderUniV2
+
+    if conf['lpType'] == 'uniV2':
+        yield  project.JointlpvolatileProject.jointLPHolderUniV2
+    else : 
+        yield  project.JointlpvolatileProject.jointLPHolderVelo
+
 
 
 @pytest.fixture

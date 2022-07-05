@@ -3,6 +3,8 @@ from brownie import interface, Contract, accounts
 import pytest
 import time 
 
+ZIP_ROUTER = '0xE6Df0BB08e5A97b40B21950a0A51b94c4DbA0Ff6'
+
 
 def calculateLosses(tokens, strategies,amounts):
     losses = []
@@ -16,14 +18,14 @@ def calculateLosses(tokens, strategies,amounts):
 
 
 
-def offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct):
+def offSetDebtRatio(interface, gov, whales, tokens, conf, Contract, tokenIndex, swapPct):
     # use other AMM's LP to force some swaps 
     solidRouter = '0xa38cd27185a464914D3046f0AB9d43356B34829D'
 
     if conf['lpType'] == 'uniV2' :
-        router = Contract(conf['router'])
+        router = interface.IUniswapV2Router01(conf['router'])
     else : 
-        router = Contract(solidRouter)
+        router = interface.ISolidlyRouter01(conf['router'])
 
     whale = whales[tokenIndex]
     token = tokens[tokenIndex]
@@ -44,7 +46,7 @@ def offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct):
 
 
 def test_rebalanceDebtA(
-    chain, accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf
+    chain, interface ,accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf
 ) : 
     # Deposit to the vault
     for i in range(len(tokens)) : 
@@ -71,7 +73,7 @@ def test_rebalanceDebtA(
 
     tokenIndex = 0
     swapPct = 0.03
-    offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
+    offSetDebtRatio(interface, gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
     chain.sleep(5)
     chain.mine(5)
     #assert False
@@ -100,7 +102,7 @@ def test_rebalanceDebtA(
     print('Debt Ratio B :  {0}'.format(debtRatio1))
 
 def test_rebalanceDebtB(
-    chain, accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf
+    chain, interface ,accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf
 ) : 
     # Deposit to the vault
     for i in range(len(tokens)) : 
@@ -127,7 +129,7 @@ def test_rebalanceDebtB(
 
     tokenIndex = 1
     swapPct = 0.03
-    offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
+    offSetDebtRatio(interface, gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
     chain.sleep(5)
     chain.mine(5)
     #assert False
@@ -158,7 +160,7 @@ def test_rebalanceDebtB(
 
 
 def test_operation_offsetA(
-    chain, accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf
+    chain, interface ,accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf
 ):
     # Deposit to the vault
     for i in range(len(tokens)) : 
@@ -185,7 +187,7 @@ def test_operation_offsetA(
 
     tokenIndex = 0
     swapPct = 0.02
-    offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
+    offSetDebtRatio(interface, gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
     chain.sleep(5)
     chain.mine(5)
     #assert False
@@ -210,7 +212,7 @@ def test_operation_offsetA(
 
 
 def test_reduce_debt_offsetA(
-    chain, accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf
+    chain, interface ,accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf
 ):
     # Deposit to the vault
     for i in range(len(tokens)) : 
@@ -224,7 +226,7 @@ def test_reduce_debt_offsetA(
         
     tokenIndex = 0
     swapPct = 0.02
-    offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
+    offSetDebtRatio(interface, gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
     chain.sleep(5)
     chain.mine(5)
 
@@ -260,7 +262,7 @@ def test_reduce_debt_offsetA(
 
 
 def test_operation_offsetB(
-    chain, accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf
+    chain, interface ,accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf
 ):
     # Deposit to the vault
     for i in range(len(tokens)) : 
@@ -287,7 +289,7 @@ def test_operation_offsetB(
 
     tokenIndex = 1
     swapPct = 0.02
-    offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
+    offSetDebtRatio(interface, gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
     chain.sleep(5)
     chain.mine(5)
     #assert False
@@ -312,7 +314,7 @@ def test_operation_offsetB(
 
 
 def test_reduce_debt_offsetB(
-    chain, accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf
+    chain, interface ,accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf
 ):
     # Deposit to the vault
     for i in range(len(tokens)) : 
@@ -326,7 +328,7 @@ def test_reduce_debt_offsetB(
         
     tokenIndex = 1
     swapPct = 0.02
-    offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
+    offSetDebtRatio(interface, gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
     chain.sleep(5)
     chain.mine(5)
 
@@ -369,7 +371,7 @@ def test_reduce_debt_offsetB(
 
 
 def test_price_offset_checks_A(
-    chain, accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf
+    chain, interface ,accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf
 ) : 
     # Deposit to the vault
     for i in range(len(tokens)) : 
@@ -396,7 +398,7 @@ def test_price_offset_checks_A(
 
     tokenIndex = 0
     swapPct = 0.1
-    offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
+    offSetDebtRatio(interface, gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
     chain.sleep(5)
     chain.mine(5)
     #assert False
@@ -463,7 +465,7 @@ def test_price_offset_checks_A(
 
 
 def test_price_offset_checks_B(
-    chain, accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf
+    chain, interface ,accounts, whales, Contract, gov, tokens, vaults, strategies, jointLP, user, strategist, amounts, RELATIVE_APPROX, conf
 ) : 
     # Deposit to the vault
     for i in range(len(tokens)) : 
@@ -490,7 +492,7 @@ def test_price_offset_checks_B(
 
     tokenIndex = 1
     swapPct = 0.15
-    offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
+    offSetDebtRatio(interface, gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
     chain.sleep(5)
     chain.mine(5)
     #assert False
@@ -556,6 +558,7 @@ def test_price_offset_checks_B(
 
 def test_migration_offsetA(
     chain,
+    interface,
     tokens,
     vaults,
     strategies,
@@ -563,7 +566,7 @@ def test_migration_offsetA(
     strategy_contract,
     jointLP_contract,
     jointLP,
-    ibTokens,
+    aTokens,
     conf,
     strategist,
     gov,
@@ -592,17 +595,18 @@ def test_migration_offsetA(
 
     for i in range(len(tokens)) : 
         token = tokens[i]
-        scToken = ibTokens[i]
+        aToken = aTokens[i]
         vault = vaults[i]
-        newStrategy = strategy_contract.deploy(vault, newJointLP, scToken, conf['comptroller'], conf['router'], conf['compToken'], {"from": strategist} )        
+        newStrategy = strategy_contract.deploy(vault, newJointLP, aToken, conf['comptroller'],ZIP_ROUTER, conf['compToken'], {"from": strategist} )        
         newStrategies = newStrategies + [newStrategy]
+
 
     newJointLP.initaliseStrategies(newStrategies, {"from": gov})
 
     tokenIndex = 0
     swapPct = 0.02
 
-    offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
+    offSetDebtRatio(interface, gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
     jointLP.setPriceSource(False, 500, {'from' : gov})
 
     chain.sleep(1)
@@ -618,6 +622,7 @@ def test_migration_offsetA(
 
 def test_migration_offsetB(
     chain,
+    interface,
     tokens,
     vaults,
     strategies,
@@ -625,7 +630,7 @@ def test_migration_offsetB(
     strategy_contract,
     jointLP_contract,
     jointLP,
-    ibTokens,
+    aTokens,
     conf,
     strategist,
     gov,
@@ -654,9 +659,9 @@ def test_migration_offsetB(
 
     for i in range(len(tokens)) : 
         token = tokens[i]
-        scToken = ibTokens[i]
+        aToken = aTokens[i]
         vault = vaults[i]
-        newStrategy = strategy_contract.deploy(vault, newJointLP, scToken, conf['comptroller'], conf['router'], conf['compToken'], {"from": strategist} )        
+        newStrategy = strategy_contract.deploy(vault, newJointLP, aToken, conf['comptroller'],ZIP_ROUTER, conf['compToken'], {"from": strategist} )        
         newStrategies = newStrategies + [newStrategy]
 
     newJointLP.initaliseStrategies(newStrategies, {"from": gov})
@@ -664,7 +669,7 @@ def test_migration_offsetB(
     tokenIndex = 1
     swapPct = 0.02
 
-    offSetDebtRatio(gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
+    offSetDebtRatio(interface, gov, whales, tokens, conf, Contract, tokenIndex, swapPct)
     jointLP.setPriceSource(False, 500, {'from' : gov})
 
     chain.sleep(1)

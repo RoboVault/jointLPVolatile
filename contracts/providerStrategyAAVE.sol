@@ -70,7 +70,7 @@ contract providerAAVE is BaseStrategy {
         require(msg.sender == address(jointVault));
     }
 
-    uint8 wantDecimals;
+    uint256 public wantDecimals;
 
     uint256 public jointTokenIndex;
     uint256 public otherJointTokenIndex;

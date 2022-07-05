@@ -33,7 +33,10 @@ def test_liquidateJoint(
         vault.deposit(amount, {"from": user})
     
         assert token.balanceOf(vault.address) == amount
-        
+
+        print("Oracle Price " + str(i))
+        print( strategies[i].getOraclePrice())
+
         # harvest
     chain.sleep(5)
     chain.mine(5)
@@ -55,6 +58,8 @@ def test_liquidateJoint(
     with brownie.reverts() : 
         jointLP.withdrawAllFromJoint({'from' : user})
 
+
+    
 
     jointLP.withdrawAllFromJoint({'from' : gov})
     assert strategies[0].debtJoint() == 0
